@@ -3,10 +3,11 @@
 Wiring (see CLAUDE.md, don't change without checking the breadboard):
   CH0  TDS meter (CQRobot), 0-2.3 V, no divider
   CH1  Turbidity sensor via voltage divider (sensor outputs up to 4.5 V)
+  CH2  pH meter (DFRobot Gravity V2), 0-3.0 V, no divider
   MCP3008 on SPI0 CE0, VDD = VREF = 3.3 V, 10-bit
 
-Import this from tds_test.py, turbidity_test.py and uploader.py instead of
-copying the conversion formulas.
+Import this from tds_test.py, turbidity_test.py, ph_test.py and uploader.py
+instead of copying the conversion formulas.
 """
 import statistics
 import time
@@ -15,10 +16,12 @@ import warnings
 VREF = 3.3
 TDS_CHANNEL = 0
 TURBIDITY_CHANNEL = 1
+PH_CHANNEL = 2
 
 # Below these ADC voltages we treat the sensor as "not in water / not connected"
 TDS_MIN_V = 0.01
 TURBIDITY_MIN_V = 0.05
+PH_MIN_V = 0.05
 
 _adc = {}
 
@@ -74,10 +77,27 @@ def turbidity_from_voltage(v_adc, ratio):
     return round(max(ntu, 0.0), 1), round(v, 3), "ok"
 
 
-def read_all(samples=25, ratio=1.5, temp_c=25.0, k=1.0):
-    """One complete measurement. Any failing sensor becomes None instead of an exception."""
+# ---------------------------------------------------------------------- pH --
+def ph_from_voltage(v, v7=None, v4=None):
+    """Two-point calibration, same maths as DFRobot's DFRobot_PH library.
+    v7/v4 = voltage in pH 7.0 / pH 4.0 buffer (from `ph_test.py --calibrate`).
+    Returns (ph, note). ph is None if not calibrated, no signal or implausible."""
+    if v is None or v < PH_MIN_V:
+        return None, "no_signal"                 # board never outputs ~0 V in water
+    if v7 is None or v4 is None or abs(v7 - v4) < 0.05:
+        return None, "not_calibrated"            # ph_v is still sent, pH can be recomputed later
+    ph = 7.0 + (v - v7) * 3.0 / (v7 - v4)
+    if not 0.0 <= ph <= 14.0:
+        return None, "out_of_range"
+    return round(ph, 2), "ok"
+
+
+def read_all(samples=25, ratio=1.5, temp_c=25.0, k=1.0, ph_v7=None, ph_v4=None):
+    """One complete measurement. Any failing sensor becomes None instead of an exception.
+    The sensors are read one after another (the TDS probe can disturb the pH probe)."""
     out = {"tds_v": None, "ec_us_cm": None, "tds_ppm": None,
            "turbidity_v": None, "turbidity_ntu": None, "turbidity_note": None,
+           "ph_v": None, "ph": None, "ph_note": None,
            "water_temp_c": temp_c}
     try:
         v = read_voltage(TDS_CHANNEL, samples)
@@ -90,4 +110,10 @@ def read_all(samples=25, ratio=1.5, temp_c=25.0, k=1.0):
         out["turbidity_ntu"], out["turbidity_v"], out["turbidity_note"] = turbidity_from_voltage(v, ratio)
     except Exception as e:
         out["turbidity_error"] = str(e)
+    try:
+        v = read_voltage(PH_CHANNEL, samples)
+        out["ph_v"] = round(v, 3)
+        out["ph"], out["ph_note"] = ph_from_voltage(v, ph_v7, ph_v4)
+    except Exception as e:
+        out["ph_error"] = str(e)
     return out
