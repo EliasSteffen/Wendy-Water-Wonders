@@ -290,6 +290,17 @@ def message_for(a):
     return "\n".join(lines)
 
 
+def sms_salt(a, alt=None):
+    """SMS for the high-salt rule (the only automatic SMS). Short, plain GSM characters."""
+    s = f"WATER ALERT {a['id']}: salt very high ({a['tds']} mg/L). Do not drink, do not boil."
+    if a.get("use") == "livestock_only":
+        s += " Livestock ok."
+    alt = alt or a.get("alternative")
+    if alt:
+        s += f" Go to {alt['id']} ({alt['km']}km)."
+    return s[:150]
+
+
 def sms_for(a):
     """Short SMS (fits one segment even with the Twilio trial prefix). Plain GSM characters only."""
     first = a["reasons"][0] if a["reasons"] else "check the water"

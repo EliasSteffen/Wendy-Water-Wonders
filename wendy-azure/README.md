@@ -167,7 +167,7 @@ az functionapp config appsettings set -n $FUNC -g $RG --settings "ACS_CONNECTION
 az functionapp config appsettings set -n $FUNC -g $RG --settings "TELEGRAM_TOKEN=..." "TELEGRAM_CHAT_ID=..." -o none
 ```
 
-Benachrichtigt wird **nur, wenn eine Stelle schlechter wird**, damit es keine Flut gibt. **SMS gehen nur bei Rot** (kurze Version, passt in eine SMS), E-Mail und Telegram auch bei Gelb. Zum Schutz des Testguthabens gilt ein Tageslimit: `SMS_MAX_PER_DAY` (Standard 20) als App Setting ändern. Im echten Betrieb in Kenia wäre Africa's Talking statt Twilio sinnvoll; dafür muss nur `_send_sms` getauscht werden.
+Benachrichtigt wird **nur, wenn eine Stelle schlechter wird**, damit es keine Flut gibt. **Automatische SMS gibt es nur bei sehr hohem Salz:** Salz ≥ `SMS_SALT_MIN_TDS` (Standard 1000 mg/L) in `SMS_SALT_CONFIRM` Messungen hintereinander (Standard 2), und nur für die Stellen in `SMS_POINTS` (Standard: die echte Station `wp07`, `all` = alle). Pro Ereignis eine SMS; erst wenn das Salz wieder fällt, kann die nächste kommen. Keime, Regen, Ausblick und Sammelmeldungen gehen nur per E-Mail/Telegram. Zum Schutz des Testguthabens gilt ein Tageslimit: `SMS_MAX_PER_DAY` (Standard 20) als App Setting ändern. Im echten Betrieb in Kenia wäre Africa's Talking statt Twilio sinnvoll; dafür muss nur `_send_sms` getauscht werden.
 
 ## 6. Demo-Ablauf
 

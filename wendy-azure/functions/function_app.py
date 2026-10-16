@@ -70,6 +70,7 @@ def _assess_all(tc):
     assessed = [logic.assess(p, states.get(pid, {}), weather) for pid, p in logic.POINTS.items()]
     for a in assessed:
         a["outlook"], a["outlook_level"] = forecast.outlook_for(logic.POINTS[a["id"]], a, weather)
+        a["high_salt_streak"] = int(states.get(a["id"], {}).get("high_salt_streak", 0))
     logic.add_alternatives(assessed)
     return {"points": assessed,
             "priorities": logic.test_priorities(assessed),
@@ -227,6 +228,30 @@ def _update_twin(device_id, desired):
         return False
 
 
+# ------------------------------------------------------------- SMS rules --
+# SMS only when salt is really high, confirmed by several readings in a row, and
+# (by default) only for the real station. Everything else goes by e-mail/Telegram.
+def _sms_salt_min():
+    return float(os.environ.get("SMS_SALT_MIN_TDS", "1000"))      # ppm (mg/L)
+
+
+def _sms_confirm():
+    return max(1, int(os.environ.get("SMS_SALT_CONFIRM", "2")))     # readings in a row
+
+
+def _sms_points():
+    v = os.environ.get("SMS_POINTS", ",".join(REAL_DEVICES)).strip()
+    return None if v.lower() == "all" else {p.strip() for p in v.split(",") if p.strip()}
+
+
+def _sms_condition(a):
+    pts = _sms_points()
+    return (not a["no_data"]
+            and (a["tds"] or 0) >= _sms_salt_min()
+            and a.get("high_salt_streak", 0) >= _sms_confirm()
+            and (pts is None or a["id"] in pts))
+
+
 def _refresh_and_notify(tc):
     """Re-assess everything; alert only when a point gets worse; push twin updates."""
     result = _assess_all(tc)
@@ -235,8 +260,13 @@ def _refresh_and_notify(tc):
     for a in result["points"]:
         prev = _get(tc, "notify", a["id"])
         cur = {"level": a["level"], "salt": a["salt"], "germs": a["germs"],
-               "outlook": a["outlook_level"], "alt": (a["alternative"] or {}).get("id")}
+               "outlook": a["outlook_level"], "alt": (a["alternative"] or {}).get("id"),
+               "sms_salt": _sms_condition(a)}
         first_time = not prev
+        # SMS once when the high-salt condition starts (re-armed when it ends)
+        if cur["sms_salt"] and not prev.get("sms_salt") and not first_time:
+            alt = a["alternative"] or logic.best_alternative(a, result["points"], "salt")
+            logging.info("High salt at %s -> SMS: %s", a["id"], _send_sms(logic.sms_salt(a, alt)))
         escalated = (not first_time and (
             logic.LEVELS.index(a["salt"]) > logic.LEVELS.index(prev.get("salt", "none")) or
             logic.LEVELS.index(a["germs"]) > logic.LEVELS.index(prev.get("germs", "none")) or
@@ -257,13 +287,11 @@ def _refresh_and_notify(tc):
         if first_time or cur != prev:
             _put(tc, "notify", a["id"], cur)
 
-    # One SMS per point if few changed, otherwise one summary (no SMS flood)
-    # SMS only for red (urgent); e-mail/Telegram also for yellow. Few changes -> one message each,
-    # many changes -> one summary (no flood, saves SMS credit).
+    # E-mail/Telegram for every escalation (SMS is handled above, only for high salt).
+    # Few changes -> one message each, many changes -> one summary (no flood).
     if 0 < len(escalated_points) <= 2:
         for a in escalated_points:
-            urgent = a["level"] == "red" or a["outlook_level"] == "red"
-            _notify(logic.message_for(a), sms=logic.sms_for(a), urgent=urgent)
+            _notify(logic.message_for(a), urgent=False)
     elif len(escalated_points) > 2:
         red = [a["id"] for a in escalated_points if a["level"] == "red"]
         yellow = [a["id"] for a in escalated_points if a["level"] == "yellow"]
@@ -273,9 +301,7 @@ def _refresh_and_notify(tc):
                 f"Warning: {', '.join(red) or '-'}\nWatch: {', '.join(yellow) or '-'}\n"
                 f"Getting worse soon: {', '.join(outlook) or '-'}\n"
                 f"Test today: {prio}",
-                sms=(f"WATER ALERT: {len(escalated_points)} points changed. "
-                     f"Warning: {','.join(red) or '-'}. Test today: {prio.replace(' ', '')}")[:120],
-                urgent=bool(red or outlook))
+                urgent=False)
     return result
 
 
@@ -299,6 +325,11 @@ def ingest(event: func.EventHubEvent):
             logging.warning("Unknown point_id %s (device %s)", pid, device_id)
             continue
         st = logic.update_state(_get(tc, "point", pid), r, logic.POINTS[pid])
+        # Count readings in a row with really high salt (for the SMS rule)
+        ec = r.get("ec_us")
+        if ec is not None and float(ec) >= logic.MIN_VALID_EC:
+            high = float(ec) * logic.EC_TO_TDS >= _sms_salt_min()
+            st["high_salt_streak"] = int(st.get("high_salt_streak", 0)) + 1 if high else 0
         _put(tc, "point", pid, st)
         if "ec_us" in st:
             _put_history(tc, pid, st)
