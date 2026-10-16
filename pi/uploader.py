@@ -33,7 +33,8 @@ def load_env(path=os.path.join(HERE, ".env")):
     """Minimal .env reader (KEY=VALUE per line), no extra dependency."""
     if not os.path.exists(path):
         return
-    with open(path, encoding="utf-8") as f:
+    # utf-8-sig: Windows Notepad may save with a BOM, which would break the first key
+    with open(path, encoding="utf-8-sig") as f:
         for line in f:
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
