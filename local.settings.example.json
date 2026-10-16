@@ -1,0 +1,24 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "AzureWebJobsFeatureFlags": "EnableWorkerIndexing",
+    "AzureWebJobsStorage": "<storage account connection string>",
+
+    "IOTHUB_EH_CONN": "<IoT Hub event hub-compatible connection string>",
+    "IOTHUB_EH_NAME": "<IoT Hub event hub-compatible name>",
+    "IOTHUB_SERVICE_CONN": "<IoT Hub iothubowner connection string>",
+    "REAL_DEVICE_IDS": "wp07",
+
+    "MAPS_KEY": "<Azure Maps primary key>",
+
+    "TWILIO_SID": "",
+    "TWILIO_TOKEN": "",
+    "TWILIO_FROM": "",
+    "ALERT_SMS_TO": "+49...",
+
+    "TELEGRAM_TOKEN": "",
+    "TELEGRAM_CHAT_ID": ""
+  },
+  "Host": { "CORS": "*" }
+}

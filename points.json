@@ -1,0 +1,16 @@
+[
+  {"id": "wp01", "name": "Nakwamekwi",   "lat": 3.1450, "lon": 35.6120, "source_type": "borehole",     "people": 900,  "baseline_turb": 1.5, "baseline_ec": 900},
+  {"id": "wp02", "name": "Kanamkemer",   "lat": 3.1020, "lon": 35.5800, "source_type": "borehole",     "people": 1200, "baseline_turb": 1.2, "baseline_ec": 1100},
+  {"id": "wp03", "name": "Napetet",      "lat": 3.1700, "lon": 35.5600, "source_type": "shallow_well", "people": 400,  "baseline_turb": 3.0, "baseline_ec": 1500},
+  {"id": "wp04", "name": "Kawalase",     "lat": 3.2100, "lon": 35.6400, "source_type": "borehole",     "people": 700,  "baseline_turb": 1.0, "baseline_ec": 750},
+  {"id": "wp05", "name": "Nadapal",      "lat": 3.0500, "lon": 35.6600, "source_type": "shallow_well", "people": 350,  "baseline_turb": 4.0, "baseline_ec": 1400},
+  {"id": "wp06", "name": "Lokiriama",    "lat": 3.2600, "lon": 35.5200, "source_type": "open_pan",     "people": 250,  "baseline_turb": 8.0, "baseline_ec": 600},
+  {"id": "wp07", "name": "Kalemngorok",  "lat": 3.1300, "lon": 35.6900, "source_type": "borehole",     "people": 1100, "baseline_turb": 2.0, "baseline_ec": 650},
+  {"id": "wp08", "name": "Nakoyo",       "lat": 3.0100, "lon": 35.5500, "source_type": "borehole",     "people": 600,  "baseline_turb": 1.3, "baseline_ec": 1450},
+  {"id": "wp09", "name": "Lomopus",      "lat": 3.3000, "lon": 35.6800, "source_type": "shallow_well", "people": 300,  "baseline_turb": 3.5, "baseline_ec": 1000},
+  {"id": "wp10", "name": "Kangatet",     "lat": 2.9800, "lon": 35.7200, "source_type": "borehole",     "people": 500,  "baseline_turb": 1.1, "baseline_ec": 4000},
+  {"id": "wp11", "name": "Lochor Ekal",  "lat": 3.2300, "lon": 35.7500, "source_type": "shallow_well", "people": 450,  "baseline_turb": 2.5, "baseline_ec": 1200},
+  {"id": "wp12", "name": "Nawoitorong",  "lat": 3.0800, "lon": 35.5100, "source_type": "open_pan",     "people": 200,  "baseline_turb": 9.0, "baseline_ec": 500},
+  {"id": "wp13", "name": "Kerio Junction","lat": 2.9500, "lon": 35.6200, "source_type": "borehole",    "people": 800,  "baseline_turb": 1.0, "baseline_ec": 2600},
+  {"id": "wp14", "name": "Ekalale",      "lat": 3.3300, "lon": 35.5800, "source_type": "borehole",     "people": 650,  "baseline_turb": 1.4, "baseline_ec": 950}
+]
