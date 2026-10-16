@@ -133,6 +133,16 @@ Jede Warnung geht über alle eingerichteten Kanäle raus (Redundanz). Nicht eing
    az functionapp config appsettings set -n $FUNC -g $RG --settings "TWILIO_SID=AC..." "TWILIO_TOKEN=..." "TWILIO_FROM=+1..." "ALERT_SMS_TO=+49151...,+49160..." -o none
    ```
 
+### SMS über Azure (statt Twilio, an beliebige Nummern)
+Nach Deutschland erlaubt Azure nur einen **dynamischen alphanumerischen Absender** (z. B. „WendyWater“), keine Telefonnummer. Keine Bestätigung der Empfänger nötig.
+1. Die Communication-Services-Ressource aus dem E-Mail-Abschnitt nutzen (`acs-$S`).
+2. Portal: `acs-$S` → **Alphanumeric Sender ID** → Reiter **Dynamic** → **Enable Alphanumeric Sender ID**.
+   Ist der Knopf grau, muss Microsoft das für den Tenant freischalten: kostenlose Anfrage unter *Help + support → Create a support request → Service and subscription limits (quotas) → Other Requests*. Das kann dauern, dann Twilio als Plan B.
+3. ```powershell
+   az functionapp config appsettings set -n $FUNC -g $RG --settings "ACS_SMS_FROM=WendyWater" "ALERT_SMS_TO=+49151..." -o none
+   ```
+Ist `ACS_SMS_FROM` gesetzt, geht die SMS über Azure, sonst über Twilio. Löschen von `ACS_SMS_FROM` schaltet zurück auf Twilio.
+
 ### E-Mail über Azure Communication Services
 ```powershell
 az extension add --name communication --only-show-errors

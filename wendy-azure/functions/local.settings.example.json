@@ -20,6 +20,7 @@
     "ACS_CONNECTION_STRING": "",
     "ACS_EMAIL_SENDER": "DoNotReply@<guid>.azurecomm.net",
     "ALERT_EMAIL_TO": "you@example.com",
+    "ACS_SMS_FROM": "WendyWater",
 
     "TELEGRAM_TOKEN": "",
     "TELEGRAM_CHAT_ID": ""

@@ -101,15 +101,39 @@ def _sms_budget_ok(n):
     return True
 
 
+def _send_sms_acs(text, numbers):
+    """SMS via Azure Communication Services with an alphanumeric sender ID (e.g. "WendyWater").
+    Germany only supports dynamic alphanumeric sender IDs, no phone numbers."""
+    try:
+        from azure.communication.sms import SmsClient   # imported lazily on purpose
+        client = SmsClient.from_connection_string(os.environ["ACS_CONNECTION_STRING"])
+        results = client.send(from_=os.environ["ACS_SMS_FROM"], to=numbers, message=text)
+        out = []
+        for r in results:
+            if r.successful:
+                out.append(f"{r.to}: sent (azure)")
+            else:
+                logging.error("ACS SMS to %s failed: %s %s", r.to, r.http_status_code, r.error_message)
+                out.append(f"{r.to}: error {r.http_status_code} {r.error_message}")
+        return "; ".join(out)
+    except Exception as e:
+        logging.error("ACS SMS failed: %s", e)
+        return f"error (azure) {e}"
+
+
 def _send_sms(text):
-    """Channel 1: SMS via Twilio REST API (short text, only for urgent alerts)."""
-    sid, tok = os.environ.get("TWILIO_SID"), os.environ.get("TWILIO_TOKEN")
-    frm, to = os.environ.get("TWILIO_FROM"), os.environ.get("ALERT_SMS_TO")
-    if not all((sid, tok, frm, to)):
+    """Channel 1: SMS, only for urgent alerts.
+    Uses Azure Communication Services if ACS_SMS_FROM is set, otherwise Twilio."""
+    to = os.environ.get("ALERT_SMS_TO")
+    use_acs = bool(os.environ.get("ACS_SMS_FROM") and os.environ.get("ACS_CONNECTION_STRING"))
+    sid, tok, frm = os.environ.get("TWILIO_SID"), os.environ.get("TWILIO_TOKEN"), os.environ.get("TWILIO_FROM")
+    if not to or not (use_acs or all((sid, tok, frm))):
         return "not configured"
     numbers = [n.strip() for n in to.split(",") if n.strip()]
     if not _sms_budget_ok(len(numbers)):
         return "skipped (daily SMS cap reached)"
+    if use_acs:
+        return _send_sms_acs(text, numbers)
     auth = base64.b64encode(f"{sid}:{tok}".encode()).decode()
     results = []
     for number in numbers:
