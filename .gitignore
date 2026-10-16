@@ -5,3 +5,5 @@ __pycache__/
 buffer.db
 desired.json
 local.settings.json
+
+**/.DS_Store

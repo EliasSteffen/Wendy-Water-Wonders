@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Reads the water sensors and sends the measurements to Azure IoT Hub.
 
-- one measurement every --interval seconds (median of 25 ADC reads per sensor)
-- every measurement is stored in a local SQLite buffer first, so nothing is
-  lost when Wi-Fi drops; unsent measurements are uploaded in one batch as soon
-  as the IoT Hub is reachable again
+- one measurement every --interval seconds (default 30, INTERVAL_S in .env),
+  median of 25 ADC reads per sensor
+- every measurement goes into a local SQLite buffer (buffer.db) first and is
+  deleted only after the IoT Hub has acknowledged it, so nothing is lost when
+  Wi-Fi drops. A background thread uploads the oldest measurements in batches
+  whenever the hub is reachable, so measuring never waits for the network
 - receives the device twin from the cloud (nearest alternative water point,
   advice, forecast) and writes it to desired.json
 
@@ -15,6 +17,7 @@ Test first:
     .venv/bin/python uploader.py --fake --dry-run --count 3      # without sensors
 Run:
     .venv/bin/python uploader.py
+    .venv/bin/python uploader.py --interval 5                    # faster, e.g. for the demo
 """
 import argparse
 import json
@@ -23,10 +26,14 @@ import random
 import socket
 import sqlite3
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+SEND_TIMEOUT_S = 60      # give up on one upload attempt after this; the SDK call has no timeout of its own
+RETRY_S = 30             # after a failed upload, retry with the next measurement or after this long
+DRAIN_AT_EXIT_S = 30     # with --count: how long to wait for the last upload before exiting
 
 
 def load_env(path=os.path.join(HERE, ".env")):
@@ -42,6 +49,12 @@ def load_env(path=os.path.join(HERE, ".env")):
                 os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
+def env_float(name, default=None):
+    """Float from the environment; missing or empty -> default."""
+    value = os.environ.get(name, "").strip()
+    return float(value) if value else default
+
+
 def now_iso():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -52,26 +65,35 @@ def log(*parts):
 
 # ------------------------------------------------------------------ buffer --
 class Buffer:
+    """Measurements waiting for upload. A row is deleted only after the IoT Hub
+    acknowledged it. sqlite3 connections belong to one thread, so the measuring
+    and the upload thread each open their own Buffer on the same file."""
+
     def __init__(self, path):
-        self.db = sqlite3.connect(path)
+        self.db = sqlite3.connect(path, timeout=30)
+        self.db.execute("PRAGMA journal_mode=WAL")      # one thread writes while the other reads
+        self.db.execute("PRAGMA synchronous=FULL")      # survive power cuts on the SD card
         self.db.execute("CREATE TABLE IF NOT EXISTS readings "
-                        "(id INTEGER PRIMARY KEY, payload TEXT, sent INTEGER DEFAULT 0)")
+                        "(id INTEGER PRIMARY KEY AUTOINCREMENT, payload TEXT NOT NULL)")
         self.db.commit()
 
-    def add(self, payload):
-        self.db.execute("INSERT INTO readings (payload) VALUES (?)", (json.dumps(payload),))
-        self.db.commit()
+    def add(self, payload, max_rows):
+        """Store one measurement. Returns how many of the oldest rows were dropped
+        because the buffer is full (only happens after a very long offline period)."""
+        with self.db:
+            self.db.execute("INSERT INTO readings (payload) VALUES (?)", (json.dumps(payload),))
+            return self.db.execute("DELETE FROM readings WHERE id <= (SELECT MAX(id) FROM readings) - ?",
+                                   (max_rows,)).rowcount
 
-    def unsent(self, limit=200):
-        return self.db.execute("SELECT id, payload FROM readings WHERE sent = 0 ORDER BY id LIMIT ?",
-                               (limit,)).fetchall()
+    def oldest(self, limit):
+        return self.db.execute("SELECT id, payload FROM readings ORDER BY id LIMIT ?", (limit,)).fetchall()
 
-    def mark_sent(self, ids):
-        self.db.executemany("UPDATE readings SET sent = 1 WHERE id = ?", [(i,) for i in ids])
-        self.db.commit()
+    def delete(self, ids):
+        with self.db:
+            self.db.executemany("DELETE FROM readings WHERE id = ?", [(i,) for i in ids])
 
     def pending(self):
-        return self.db.execute("SELECT COUNT(*) FROM readings WHERE sent = 0").fetchone()[0]
+        return self.db.execute("SELECT COUNT(*) FROM readings").fetchone()[0]
 
 
 # ---------------------------------------------------------------- IoT Hub --
@@ -107,32 +129,75 @@ class Uploader:
         self.client = IoTHubDeviceClient.create_from_connection_string(
             self.conn_str, connection_retry=False, websockets=self.websockets)
         self.client.connect()
-        self.client.on_twin_desired_properties_patch_received = self._save_twin
-        self._save_twin(self.client.get_twin().get("desired", {}))
+        try:
+            self.client.on_twin_desired_properties_patch_received = self._save_twin
+            self._save_twin(self.client.get_twin().get("desired", {}))
+        except Exception as e:
+            log("could not read the device twin, uploading anyway:", e)
 
     def _drop(self):
-        try:
-            if self.client:
-                self.client.shutdown()
-        except Exception:
-            pass
-        self.client = None
+        """Forget the client. shutdown() runs in the background so a dead connection can't block us."""
+        client, self.client = self.client, None
+
+        def shutdown():
+            try:
+                client.shutdown()
+            except Exception:
+                pass
+
+        if client:
+            threading.Thread(target=shutdown, daemon=True).start()
 
     def send(self, payloads):
-        """Send a batch. Returns True on success; never raises."""
-        from azure.iot.device import Message
-        try:
-            if self.client is None:
-                self._connect()
-            msg = Message(json.dumps({"readings": payloads}))
-            msg.content_type = "application/json"
-            msg.content_encoding = "utf-8"
-            self.client.send_message(msg)
+        """Send one batch and wait until the IoT Hub acknowledged it.
+        Returns True only if the hub confirmed it; never raises."""
+        result = {}
+
+        def attempt():
+            try:
+                from azure.iot.device import Message
+                if self.client is None:
+                    self._connect()
+                msg = Message(json.dumps({"readings": payloads}))
+                msg.content_type = "application/json"
+                msg.content_encoding = "utf-8"
+                self.client.send_message(msg)       # returns only after the hub's acknowledgement
+                result["ok"] = True
+            except Exception as e:
+                result["error"] = e
+
+        worker = threading.Thread(target=attempt, daemon=True)
+        worker.start()
+        worker.join(SEND_TIMEOUT_S)
+        if result.get("ok"):
             return True
-        except Exception as e:
-            log("upload failed, keeping buffer:", e)
-            self._drop()
-            return False
+        log("upload failed, keeping buffer:", result.get("error") or f"no answer within {SEND_TIMEOUT_S}s")
+        self._drop()
+        return False
+
+
+def upload_loop(uploader, buffer_path, batch, new_data):
+    """Background thread: send the oldest measurements until the buffer is empty.
+    Each batch is deleted only after the IoT Hub acknowledged it; if the upload
+    breaks off in between, the batch is sent again (the cloud overwrites duplicates)."""
+    buffer = Buffer(buffer_path)
+    offline = False
+    while True:
+        try:
+            rows = buffer.oldest(batch)
+            if rows and not uploader.reachable():
+                if not offline:
+                    log("offline, measurements stay in buffer.db")
+                offline = True
+            elif rows and uploader.send([json.loads(p) for _, p in rows]):
+                buffer.delete([i for i, _ in rows])
+                log(f"sent {len(rows)} · {buffer.pending()} waiting")
+                offline = False
+                continue                            # more waiting? send them right away
+        except Exception as e:                      # e.g. SQLite busy: never stop uploading for good
+            log("upload error:", e)
+        new_data.wait(RETRY_S)                      # wake up with the next measurement
+        new_data.clear()
 
 
 # --------------------------------------------------------------- measuring --
@@ -141,42 +206,56 @@ def measure(args):
         ec = round(random.uniform(520, 600), 1)
         return {"tds_v": 0.7, "ec_us_cm": ec, "tds_ppm": round(ec * 0.5, 1),
                 "turbidity_v": None, "turbidity_ntu": None, "turbidity_note": "fake",
+                "ph_v": None, "ph": round(random.uniform(7.0, 7.6), 2), "ph_note": "fake",
                 "water_temp_c": args.temp}
     import sensors
-    return sensors.read_all(samples=args.samples, ratio=args.ratio, temp_c=args.temp, k=args.k)
+    return sensors.read_all(samples=args.samples, ratio=args.ratio, temp_c=args.temp, k=args.k,
+                            ph_v7=args.ph_v7, ph_v4=args.ph_v4)
 
 
 def main():
     load_env()
     ap = argparse.ArgumentParser(description="Send water sensor readings to Azure IoT Hub")
-    ap.add_argument("--interval", type=float, default=float(os.environ.get("INTERVAL_S", 30)),
-                    help="seconds between measurements (default 30)")
+    ap.add_argument("--interval", type=float, default=env_float("INTERVAL_S", 30.0),
+                    help="seconds between measurements (default 30, or INTERVAL_S in .env)")
     ap.add_argument("--count", type=int, default=0, help="stop after N measurements (0 = run forever)")
     ap.add_argument("--dry-run", action="store_true", help="print the JSON instead of sending it")
     ap.add_argument("--fake", action="store_true", help="fake sensor values (no hardware needed)")
     ap.add_argument("--samples", type=int, default=25, help="ADC reads per measurement (median)")
-    ap.add_argument("--ratio", type=float, default=float(os.environ.get("TURBIDITY_DIVIDER_RATIO", 1.5)),
+    ap.add_argument("--ratio", type=float, default=env_float("TURBIDITY_DIVIDER_RATIO", 1.5),
                     help="turbidity voltage divider: 1.5 (10k+20k) or 2.0 (10k+10k), check the breadboard")
-    ap.add_argument("--k", type=float, default=float(os.environ.get("TDS_K", 1.0)), help="TDS calibration factor")
-    ap.add_argument("--temp", type=float, default=float(os.environ.get("WATER_TEMP_C", 25.0)),
+    ap.add_argument("--k", type=float, default=env_float("TDS_K", 1.0), help="TDS calibration factor")
+    ap.add_argument("--temp", type=float, default=env_float("WATER_TEMP_C", 25.0),
                     help="water temperature in °C for TDS compensation (no temp sensor yet)")
+    ap.add_argument("--ph-v7", type=float, default=env_float("PH_V7"),
+                    help="voltage in pH 7.0 buffer (from ph_test.py --calibrate); without it pH is sent as null")
+    ap.add_argument("--ph-v4", type=float, default=env_float("PH_V4"),
+                    help="voltage in pH 4.0 buffer (from ph_test.py --calibrate)")
     ap.add_argument("--point-id", default=os.environ.get("POINT_ID", "wp07"),
                     help="water point this station represents on Wendy's map")
     ap.add_argument("--websockets", action="store_true",
                     default=os.environ.get("IOTHUB_WEBSOCKETS", "") == "1",
                     help="use port 443 if the network blocks MQTT port 8883")
+    ap.add_argument("--batch", type=int, default=int(env_float("UPLOAD_BATCH", 100)),
+                    help="measurements per upload message (default 100)")
+    ap.add_argument("--max-rows", type=int, default=int(env_float("MAX_BUFFER_ROWS", 200000)),
+                    help="buffer limit; beyond it the oldest measurements are dropped (200000 ≈ 70 days at 30 s)")
     args = ap.parse_args()
 
-    uploader = None
+    uploader = buffer = None
     if not args.dry_run:
         conn = os.environ.get("IOTHUB_DEVICE_CONNECTION_STRING")
         if not conn:
             sys.exit("IOTHUB_DEVICE_CONNECTION_STRING missing: put it into ~/water-quality/.env")
         uploader = Uploader(conn, websockets=args.websockets)
+        buffer_path = os.path.join(HERE, "buffer.db")
+        buffer = Buffer(buffer_path)
+        new_data = threading.Event()
+        threading.Thread(target=upload_loop, args=(uploader, buffer_path, args.batch, new_data),
+                         name="upload", daemon=True).start()
     device_id = uploader.device_id if uploader else "dry-run"
-    buffer = Buffer(os.path.join(HERE, "buffer.db"))
 
-    log(f"station {args.point_id} ({device_id}) · every {args.interval:.0f}s · "
+    log(f"station {args.point_id} ({device_id}) · every {args.interval:g}s · "
         f"{'DRY RUN' if args.dry_run else 'sending to Azure'}")
     n = 0
     while True:
@@ -186,19 +265,25 @@ def main():
         if args.dry_run:
             print(json.dumps(payload), flush=True)
         else:
-            buffer.add(payload)
-            rows = buffer.unsent()
-            if uploader.reachable():
-                if uploader.send([json.loads(p) for _, p in rows]):
-                    buffer.mark_sent([i for i, _ in rows])
-                    log(f"sent {len(rows)} · TDS {payload['tds_ppm']} ppm · NTU {payload['turbidity_ntu']}")
-            else:
-                log(f"offline, buffered ({buffer.pending()} waiting) · TDS {payload['tds_ppm']} ppm")
+            dropped = buffer.add(payload, args.max_rows)
+            new_data.set()
+            if dropped:
+                log(f"buffer full, dropped the {dropped} oldest measurements")
+            log(f"measured · TDS {payload['tds_ppm']} ppm · pH {payload['ph']} · "
+                f"NTU {payload['turbidity_ntu']} · {buffer.pending()} waiting")
 
         n += 1
         if args.count and n >= args.count:
             break
         time.sleep(max(0.0, args.interval - (time.time() - started)))
+
+    if buffer:
+        # --count run: give the upload thread a moment for the last measurements
+        deadline = time.time() + DRAIN_AT_EXIT_S
+        while buffer.pending() and time.time() < deadline:
+            time.sleep(1)
+        if buffer.pending():
+            log(f"{buffer.pending()} measurements stay in buffer.db for the next run")
 
 
 if __name__ == "__main__":
