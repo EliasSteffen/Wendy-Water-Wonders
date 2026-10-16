@@ -10,6 +10,9 @@ Endpoints / triggers
   POST /api/simulate    {"preset":"heavy_rain|forecast|dry|reset"}  (demo weather override)
   POST /api/reset       {"point_id":"wp07","by":"Wendy","checked":true}  switch the station's
                         warning lights off (human in the loop: only from the dashboard button)
+  POST /api/clear       {"point_id":"wp05"|"all"}  dashboard "Reset": forget tests, manual colour,
+                        salt trend and alert memory ("all" also ends the demo weather)
+  POST /api/override    {"point_id":"wp05","level":"none|yellow|red"}  set a colour by hand (demo, no SMS)
 """
 import base64
 import hashlib
@@ -71,6 +74,11 @@ def _assess_all(tc):
     for a in assessed:
         a["outlook"], a["outlook_level"] = forecast.outlook_for(logic.POINTS[a["id"]], a, weather)
         a["high_salt_streak"] = int(states.get(a["id"], {}).get("high_salt_streak", 0))
+        a["live"] = a["id"] in REAL_DEVICES
+        ov = states.get(a["id"], {}).get("override")
+        if ov:   # colour set by hand on the dashboard (demo); no SMS is triggered by this
+            a["level"], a["manual"] = ov["level"], True
+            a["reasons"].insert(0, "colour set manually")
     logic.add_alternatives(assessed)
     return {"points": assessed,
             "priorities": logic.test_priorities(assessed),
@@ -252,6 +260,13 @@ def _sms_condition(a):
             and (pts is None or a["id"] in pts))
 
 
+def _manual_leds(a):
+    if not a.get("manual"):
+        return {}
+    return {"salt": "red" if a["level"] == "red" else "none",
+            "germs": "yellow" if a["level"] == "yellow" else "none"}
+
+
 def _refresh_and_notify(tc):
     """Re-assess everything; alert only when a point gets worse; push twin updates."""
     result = _assess_all(tc)
@@ -279,6 +294,8 @@ def _refresh_and_notify(tc):
                 "use": a["use"],
                 "salt": a["salt"],          # the Pi's LEDs: salt red -> red, germ risk -> yellow
                 "germs": a["germs"],
+                **_manual_leds(a),          # colour set by hand on the dashboard drives the LEDs too
+                "level": a["level"],
                 "advice": a["advice"][:3],
                 "rain_forecast_48h": weather.get("rain_forecast_48h", 0),
                 "dry_days": weather.get("dry_days", 0),
@@ -458,6 +475,55 @@ def testalert(req: func.HttpRequest) -> func.HttpResponse:
                      f"Sent {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC",
                      sms="TEST from Wendy's Early Signal: SMS works.", urgent=True)
     return _json(status)
+
+
+def _reset_point(tc, pid):
+    """Back to a calm state: forget tests, manual colour, trend and alert memory."""
+    st = _get(tc, "point", pid)
+    for k in ("last_test", "last_test_ts", "override", "high_salt_streak"):
+        st.pop(k, None)
+    if "ec_us" in st:
+        st["ec_slow"] = st["ec_slow_before"] = st["ec_us"]   # current value becomes the new normal
+    _put(tc, "point", pid, st)
+    try:
+        tc.delete_entity("notify", pid)   # next evaluation counts as "first time": no alert, no SMS
+    except Exception:
+        pass
+
+
+@app.route(route="clear", methods=["POST"], auth_level=func.AuthLevel.ANONYMOUS)
+def clear_point(req: func.HttpRequest) -> func.HttpResponse:
+    """Dashboard "Reset": {"point_id": "wp07"} resets one point, {"point_id": "all"} resets everything incl. demo weather."""
+    try:
+        pid = req.get_json().get("point_id", "all")
+    except Exception:
+        pid = "all"
+    tc = _table()
+    if pid == "all":
+        for p in logic.POINTS:
+            _reset_point(tc, p)
+        _put(tc, "weather", "override", {"active": False})
+    elif pid in logic.POINTS:
+        _reset_point(tc, pid)
+    else:
+        return _json({"error": "unknown point_id"}, 400)
+    return _json(_refresh_and_notify(tc))
+
+
+@app.route(route="override", methods=["POST"], auth_level=func.AuthLevel.ANONYMOUS)
+def override(req: func.HttpRequest) -> func.HttpResponse:
+    """{"point_id": "wp07", "level": "none|yellow|red"}: set the colour by hand (demo)."""
+    try:
+        b = req.get_json()
+        pid, level = b["point_id"], b["level"]
+        assert pid in logic.POINTS and level in logic.LEVELS
+    except Exception:
+        return _json({"error": "send point_id and level (none|yellow|red)"}, 400)
+    tc = _table()
+    st = _get(tc, "point", pid)
+    st["override"] = {"level": level, "ts": datetime.now(timezone.utc).isoformat()}
+    _put(tc, "point", pid, st)
+    return _json(_refresh_and_notify(tc))   # pushes the colour to a live station's LEDs
 
 
 @app.route(route="testresult", methods=["POST"], auth_level=func.AuthLevel.ANONYMOUS)
