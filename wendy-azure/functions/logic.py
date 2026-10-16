@@ -85,7 +85,7 @@ def assess(point, st, weather, now=None):
         "people": point["people"], "source_type": point["source_type"],
         "level": "none", "salt": "none", "germs": "none", "p_germs": 0.0,
         "tds": None, "use": "unknown", "reasons": [], "advice": [],
-        "data_age_h": None, "no_data": False,
+        "data_age_h": None, "no_data": False, "salt_trend": "unknown",
     }
     if "ec_us" not in st:
         out["no_data"] = True
@@ -101,6 +101,7 @@ def assess(point, st, weather, now=None):
     out["tds"] = round(tds)
     slow_before = st.get("ec_slow_before", st.get("ec_slow", ec))
     rising = ec > SALT_RISING_RATIO * slow_before
+    out["salt_trend"] = "rising" if rising else "stable"
     if tds > TDS_LIVESTOCK_LIMIT:
         out["salt"], out["use"] = "red", "none"
         out["reasons"].append(f"salt very high (~{round(tds)} mg/L)")
@@ -261,7 +262,21 @@ def message_for(a):
     if alt:
         lines.append(f"Nearest alternative: {alt['id']} {alt['name']} ({alt['km']} km), "
                      "no anomaly measured recently.")
+    for o in (a.get("outlook") or [])[:1]:
+        lines.append(f"Outlook: {o['message']}")
     return "\n".join(lines)
+
+
+def open_meteo_forecast(days, precip, tmax, today=None, n=10):
+    """Next n days (starting today) from an Open-Meteo daily response."""
+    today = today or datetime.now(timezone.utc).date().isoformat()
+    i = days.index(today) if today in days else 0
+    out = []
+    for j in range(i, min(i + n, len(days))):
+        out.append({"date": days[j], "rain_mm": round(precip[j] or 0.0, 1),
+                    "tmax": None if tmax is None or tmax[j] is None else round(tmax[j], 1),
+                    "p_rain": None})
+    return out
 
 
 def demo():

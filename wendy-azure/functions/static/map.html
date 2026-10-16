@@ -38,6 +38,17 @@
   .trendnow { font-size: 13px; font-weight: 600; }
   .trendnow.up { color: var(--red); }
   .chartbox { position: relative; height: 210px; }
+  .ring { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #f97316; margin-right: 4px; vertical-align: -2px; }
+  .strip { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; margin-bottom: 10px; }
+  .day { display: grid; grid-template-rows: auto 46px auto auto; justify-items: center; font-size: 10px; color: var(--muted); }
+  .day .bar { align-self: end; width: 70%; background: #38bdf8; border-radius: 2px 2px 0 0; min-height: 1px; }
+  .day .mm { color: var(--fg); }
+  .day.hot .t { color: #f97316; font-weight: 600; }
+  .outlook { border-left: 4px dashed #f97316; padding: 6px 10px; background: #0003; border-radius: 4px; margin-bottom: 8px; }
+  .outlook.yellow { border-left-color: var(--yellow); }
+  .outlook small { color: var(--muted); display: block; margin-top: 2px; }
+  .src { font-size: 11px; color: var(--muted); }
+  .buttons.grid2 { grid-template-columns: 1fr 1fr; }
   @media (max-width: 800px) { .app { grid-template-columns: 1fr; grid-template-rows: 55vh auto; } }
 </style>
 </head>
@@ -51,6 +62,7 @@
         <span><span class="dot" style="background:var(--none)"></span>no anomaly measured</span>
         <span><span class="dot" style="background:var(--yellow)"></span>watch / test</span>
         <span><span class="dot" style="background:var(--red)"></span>warning</span>
+        <span><span class="ring"></span>getting worse soon</span>
       </div>
     </div>
     <section><h2>Test today</h2><ol id="prio"><li class="muted">loading…</li></ol></section>
@@ -62,6 +74,12 @@
         <span id="h-now" class="trendnow muted">–</span>
       </div>
       <div class="chartbox"><canvas id="h-chart"></canvas></div>
+    </section>
+    <section>
+      <h2>Outlook · next 10 days</h2>
+      <div id="strip" class="strip"></div>
+      <div id="outlooks" class="muted">loading…</div>
+      <div id="fcsrc" class="src"></div>
     </section>
     <section><h2>Weather (Lodwar)</h2><div id="weather" class="weather">–</div></section>
     <section>
@@ -81,11 +99,13 @@
     </section>
     <section>
       <h2>Demo weather</h2>
-      <div class="buttons row">
+      <div class="buttons grid2">
         <button data-preset="heavy_rain">Heavy rain</button>
         <button data-preset="forecast">Rain forecast</button>
+        <button data-preset="dry">Dry &amp; hot</button>
         <button data-preset="reset">Real weather</button>
       </div>
+      <div class="buttons" style="margin-top:8px"><button id="clouds">Show clouds (satellite)</button></div>
     </section>
   </aside>
 </div>
@@ -103,6 +123,11 @@ map.events.add('ready', () => {
   map.layers.add(new atlas.layer.LineLayer(source, null, {
     strokeColor: '#ffffff', strokeWidth: 3, strokeDashArray: [2, 2],
     filter: ['==', ['geometry-type'], 'LineString']
+  }));
+  map.layers.add(new atlas.layer.BubbleLayer(source, null, {
+    color: 'rgba(0,0,0,0)', radius: 19, strokeWidth: 3,
+    strokeColor: ['match', ['get', 'outlook_level'], 'red', '#f97316', 'yellow', '#eab308', 'rgba(0,0,0,0)'],
+    filter: ['all', ['==', ['geometry-type'], 'Point'], ['!=', ['get', 'outlook_level'], 'none']]
   }));
   const bubbles = new atlas.layer.BubbleLayer(source, null, {
     color: ['get', 'color'], radius: ['get', 'radius'], strokeColor: '#ffffff', strokeWidth: 2,
@@ -123,6 +148,7 @@ map.events.add('ready', () => {
       `${p.id} ${p.name}`,
       `Salt: ${p.salt} (~${p.tds ?? '–'} mg/L) · Germ risk: ${Math.round(p.p_germs * 100)} %`,
       ...p.reasons, ...p.advice,
+      ...(p.outlook || []).map(o => `Outlook: ${o.message}`),
       p.data_age_h != null ? `Data age: ${p.data_age_h} h` : 'No data yet'
     ];
     lines.forEach((t, i) => { const el = document.createElement(i ? 'div' : 'b'); el.textContent = t; div.appendChild(el); });
@@ -151,6 +177,58 @@ async function refresh() {
   renderPanel(data);
   loadHistory();
 }
+
+// ------------------------------------------------------------- outlook --
+function renderOutlook(data) {
+  const fc = (data.weather && data.weather.forecast) || [];
+  const strip = document.getElementById('strip');
+  const maxRain = Math.max(20, ...fc.map(d => d.rain_mm || 0));
+  strip.replaceChildren(...fc.slice(0, 10).map(d => {
+    const el = document.createElement('div');
+    el.className = 'day' + ((d.tmax || 0) >= 36 ? ' hot' : '');
+    const wd = document.createElement('span');
+    wd.textContent = new Date(d.date + 'T12:00:00').toLocaleDateString([], { weekday: 'short' });
+    const bar = document.createElement('div');
+    bar.className = 'bar'; bar.style.height = `${Math.round(46 * (d.rain_mm || 0) / maxRain)}px`;
+    const mm = document.createElement('span'); mm.className = 'mm'; mm.textContent = `${Math.round(d.rain_mm || 0)}mm`;
+    const t = document.createElement('span'); t.className = 't'; t.textContent = d.tmax != null ? `${Math.round(d.tmax)}°` : '–';
+    el.append(wd, bar, mm, t);
+    return el;
+  }));
+
+  const box = document.getElementById('outlooks');
+  const items = [];
+  data.points.forEach(p => (p.outlook || []).forEach(o => items.push({ p, o })));
+  items.sort((a, b) => (b.o.level === 'red') - (a.o.level === 'red'));
+  if (!fc.length) box.textContent = 'No forecast yet.';
+  else if (!items.length) box.textContent = 'Nothing expected to get worse.';
+  else box.replaceChildren(...items.slice(0, 6).map(({ p, o }) => {
+    const d = document.createElement('div');
+    d.className = 'outlook ' + o.level;
+    const b = document.createElement('b'); b.textContent = `${p.id} ${p.name} · ${o.title}`; d.appendChild(b);
+    const m = document.createElement('div'); m.textContent = o.message; d.appendChild(m);
+    const s = document.createElement('small'); s.textContent = o.drivers.join(' · '); d.appendChild(s);
+    return d;
+  }));
+  const w = data.weather || {};
+  document.getElementById('fcsrc').textContent =
+    fc.length ? `Forecast: ${w.source && w.source.startsWith('demo') ? 'demo scenario' : (w.forecast_source || 'unknown')}` : '';
+}
+
+let cloudLayer = null;
+document.getElementById('clouds').addEventListener('click', e => {
+  if (!cloudLayer) {
+    cloudLayer = new atlas.layer.TileLayer({
+      tileUrl: 'https://{azMapsDomain}/map/tile?api-version=2.0&tilesetId=microsoft.weather.infrared.main&zoom={z}&x={x}&y={y}&tileSize=256',
+      opacity: 0.55, tileSize: 256, maxSourceZoom: 15
+    }, 'clouds');
+    try { map.layers.add(cloudLayer, 'labels'); } catch (err) { map.layers.add(cloudLayer); }
+    e.target.textContent = 'Hide clouds';
+  } else {
+    map.layers.remove(cloudLayer); cloudLayer = null;
+    e.target.textContent = 'Show clouds (satellite)';
+  }
+});
 
 // ---------------------------------------------------------- salt trend --
 let selectedId = null, chart = null;
@@ -237,6 +315,7 @@ function renderPanel(data) {
     return d;
   }));
 
+  renderOutlook(data);
   const w = data.weather || {};
   document.getElementById('weather').textContent =
     `Rain last 72 h: ${w.rain_72h ?? '–'} mm · dry days: ${w.dry_days ?? '–'} · forecast 48 h: ${w.rain_forecast_48h ?? '–'} mm` +
