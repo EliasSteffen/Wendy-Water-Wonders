@@ -2,8 +2,9 @@
 .venv/
 __pycache__/
 *.pyc
-buffer.db
+buffer.db*
 desired.json
+alarm.json*
 local.settings.json
 
 **/.DS_Store

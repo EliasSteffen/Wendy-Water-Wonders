@@ -8,6 +8,8 @@ Endpoints / triggers
   GET  /api/history?id=wp07&n=150   salt history of one point (for the trend chart)
   POST /api/testresult  {"point_id":"wp07","test":"h2s|cbt|salt_kit","result":"positive|negative"}
   POST /api/simulate    {"preset":"heavy_rain|forecast|dry|reset"}  (demo weather override)
+  POST /api/reset       {"point_id":"wp07","by":"Wendy","checked":true}  switch the station's
+                        warning lights off (human in the loop: only from the dashboard button)
 """
 import base64
 import hashlib
@@ -19,6 +21,7 @@ import os
 import time
 import urllib.parse
 import urllib.request
+import uuid
 from datetime import datetime, timezone
 
 import azure.functions as func
@@ -201,10 +204,10 @@ def _notify(text, sms=None, urgent=True):
 
 # ------------------------------------------------------------ device twin --
 def _update_twin(device_id, desired):
-    """Write desired properties via the IoT Hub REST API (no extra SDK needed)."""
+    """Write desired properties via the IoT Hub REST API (no extra SDK needed). True if it worked."""
     cs = os.environ.get("IOTHUB_SERVICE_CONN")
     if not cs:
-        return
+        return False
     parts = dict(p.split("=", 1) for p in cs.split(";") if p)
     host, key_name, key = parts["HostName"], parts["SharedAccessKeyName"], parts["SharedAccessKey"]
     expiry = int(time.time()) + 3600
@@ -218,8 +221,10 @@ def _update_twin(device_id, desired):
         headers={"Authorization": token, "Content-Type": "application/json", "If-Match": "*"})
     try:
         urllib.request.urlopen(req, timeout=10)
+        return True
     except Exception as e:
         logging.error("Twin update failed for %s: %s", device_id, e)
+        return False
 
 
 def _refresh_and_notify(tc):
@@ -242,6 +247,8 @@ def _refresh_and_notify(tc):
             _update_twin(a["id"], {
                 "alternative": a["alternative"],
                 "use": a["use"],
+                "salt": a["salt"],          # the Pi's LEDs: salt red -> red, germ risk -> yellow
+                "germs": a["germs"],
                 "advice": a["advice"][:3],
                 "rain_forecast_48h": weather.get("rain_forecast_48h", 0),
                 "dry_days": weather.get("dry_days", 0),
@@ -399,7 +406,9 @@ def _json(data, status=200):
 
 @app.route(route="state", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
 def state(req: func.HttpRequest) -> func.HttpResponse:
-    return _json(_assess_all(_table()))
+    result = _assess_all(_table())
+    result["stations"] = REAL_DEVICES               # points with a real station (LEDs, reset button)
+    return _json(result)
 
 
 @app.route(route="map", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
@@ -436,6 +445,25 @@ def testresult(req: func.HttpRequest) -> func.HttpResponse:
     _put(tc, "point", pid, st)
     _notify(f"Test result received: {pid} {test.upper()} {result}.", urgent=False)
     return _json(_refresh_and_notify(tc))
+
+
+@app.route(route="reset", methods=["POST"], auth_level=func.AuthLevel.ANONYMOUS)
+def reset_water(req: func.HttpRequest) -> func.HttpResponse:
+    """Dashboard button "Reset water": a person who checked the water point switches the
+    station's yellow/red lights off. The station never does this by itself (human in the loop).
+    Goes through the device twin, so a station that is offline gets it when it reconnects."""
+    try:
+        b = req.get_json()
+        pid, by = b["point_id"], str(b.get("by", "")).strip()[:40]
+        assert pid in REAL_DEVICES and by and b.get("checked") is True
+    except Exception:
+        return _json({"error": "send point_id (a station), by (your name) and checked: true"}, 400)
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if not _update_twin(pid, {"reset_water": {"id": uuid.uuid4().hex[:12], "by": by, "ts": ts}}):
+        return _json({"error": "could not reach the IoT Hub, try again"}, 502)
+    logging.info("Station %s lights reset by %s", pid, by)
+    _notify(f"{pid}: station lights reset by {by} ({ts}).", urgent=False)
+    return _json({"ok": True, "point_id": pid, "by": by, "ts": ts})
 
 
 def _demo_forecast(rains, tmax):

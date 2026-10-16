@@ -18,11 +18,15 @@ Test first:
 Run:
     .venv/bin/python uploader.py
     .venv/bin/python uploader.py --interval 5                    # faster, e.g. for the demo
+
+Status LEDs (white = running, yellow = suspicious, red = not drinkable): see leds.py.
+Yellow/red stay on until someone clicks "Reset water" in Wendy's dashboard (via the device twin).
 """
 import argparse
 import json
 import os
 import random
+import signal
 import socket
 import sqlite3
 import sys
@@ -31,6 +35,8 @@ import time
 from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+TWIN_FILE = os.path.join(HERE, "desired.json")
+ALARM_FILE = os.path.join(HERE, "alarm.json")    # LED warning, kept until "Reset water" in the dashboard
 SEND_TIMEOUT_S = 60      # give up on one upload attempt after this; the SDK call has no timeout of its own
 RETRY_S = 30             # after a failed upload, retry with the next measurement or after this long
 DRAIN_AT_EXIT_S = 30     # with --count: how long to wait for the last upload before exiting
@@ -98,12 +104,13 @@ class Buffer:
 
 # ---------------------------------------------------------------- IoT Hub --
 class Uploader:
-    def __init__(self, conn_str, websockets=False, twin_file=os.path.join(HERE, "desired.json")):
+    def __init__(self, conn_str, websockets=False, twin_file=TWIN_FILE, on_twin=None):
         parts = dict(p.split("=", 1) for p in conn_str.split(";") if "=" in p)
         if "HostName" not in parts or "DeviceId" not in parts:
             raise ValueError("IOTHUB_DEVICE_CONNECTION_STRING looks wrong (needs HostName=...;DeviceId=...)")
         self.conn_str, self.host, self.device_id = conn_str, parts["HostName"], parts["DeviceId"]
         self.websockets, self.twin_file, self.client = websockets, twin_file, None
+        self.on_twin = on_twin              # called with the whole twin after every update (LEDs)
 
     def reachable(self):
         try:
@@ -123,6 +130,11 @@ class Uploader:
             json.dump(cur, f, indent=2)
         alt = cur.get("alternative") or {}
         log("cloud says:", cur.get("use"), "| alternative:", alt.get("id"), alt.get("km"))
+        if self.on_twin:
+            try:
+                self.on_twin(cur)
+            except Exception as e:
+                log("LED update failed:", e)
 
     def _connect(self):
         from azure.iot.device import IoTHubDeviceClient
@@ -209,8 +221,30 @@ def measure(args):
                 "ph_v": None, "ph": round(random.uniform(7.0, 7.6), 2), "ph_note": "fake",
                 "water_temp_c": args.temp}
     import sensors
-    return sensors.read_all(samples=args.samples, ratio=args.ratio, temp_c=args.temp, k=args.k,
-                            ph_v7=args.ph_v7, ph_v4=args.ph_v4)
+    m = sensors.read_all(samples=args.samples, ratio=args.ratio, temp_c=args.temp, k=args.k,
+                         ph_v7=args.ph_v7, ph_v4=args.ph_v4)
+    if not args.turbidity:
+        m["turbidity_ntu"], m["turbidity_note"] = None, "disabled"
+    return m
+
+
+def start_leds(args):
+    """Status LEDs (leds.py). Never fatal: without them the station still measures."""
+    if args.no_leds:
+        return None
+    try:
+        import leds
+        status = leds.StatusLeds(tuple(int(p) for p in args.led_pins.split(",")), log=log,
+                                 state_file=ALARM_FILE)
+    except Exception as e:
+        log("no status LEDs:", e)
+        return None
+    try:
+        with open(TWIN_FILE, encoding="utf-8") as f:
+            status.update_cloud(json.load(f))           # last cloud verdict, also when offline
+    except (OSError, ValueError):
+        pass
+    return status
 
 
 def main():
@@ -240,14 +274,31 @@ def main():
                     help="measurements per upload message (default 100)")
     ap.add_argument("--max-rows", type=int, default=int(env_float("MAX_BUFFER_ROWS", 200000)),
                     help="buffer limit; beyond it the oldest measurements are dropped (200000 ≈ 70 days at 30 s)")
+    ap.add_argument("--no-turbidity", dest="turbidity", action="store_false",
+                    default=os.environ.get("TURBIDITY_ENABLED", "1") != "0",
+                    help="send turbidity as null while the sensor isn't wired right (TURBIDITY_ENABLED=0)")
+    ap.add_argument("--led-pins", default=os.environ.get("LED_PINS", "17,27,22"),
+                    help="GPIO numbers of the white, yellow, red LED (default 17,27,22)")
+    ap.add_argument("--no-leds", action="store_true", help="don't use the status LEDs")
     args = ap.parse_args()
 
+    # systemctl stop sends SIGTERM: exit through the finally below, so the LEDs go dark
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    status = start_leds(args)
+    try:
+        run(args, status)
+    finally:
+        if status:
+            status.off()
+
+
+def run(args, status):
     uploader = buffer = None
     if not args.dry_run:
         conn = os.environ.get("IOTHUB_DEVICE_CONNECTION_STRING")
         if not conn:
             sys.exit("IOTHUB_DEVICE_CONNECTION_STRING missing: put it into ~/water-quality/.env")
-        uploader = Uploader(conn, websockets=args.websockets)
+        uploader = Uploader(conn, websockets=args.websockets, on_twin=status and status.update_cloud)
         buffer_path = os.path.join(HERE, "buffer.db")
         buffer = Buffer(buffer_path)
         new_data = threading.Event()
@@ -261,6 +312,8 @@ def main():
     while True:
         started = time.time()
         payload = {"deviceId": device_id, "point_id": args.point_id, "ts": now_iso(), **measure(args)}
+        if status:
+            status.update_local(payload)
 
         if args.dry_run:
             print(json.dumps(payload), flush=True)

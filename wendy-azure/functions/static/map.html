@@ -29,8 +29,10 @@
   .muted { color: var(--muted); }
   form, .buttons { display: grid; gap: 8px; }
   .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
-  select, button { font: inherit; padding: 7px 8px; border-radius: 6px; border: 1px solid var(--line);
-                   background: #0d1317; color: var(--fg); }
+  select, button, input:not([type=checkbox]) { font: inherit; padding: 7px 8px; border-radius: 6px;
+                   border: 1px solid var(--line); background: #0d1317; color: var(--fg); min-width: 0; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .check { display: flex; gap: 6px; align-items: center; color: var(--muted); }
   button { cursor: pointer; background: #22313a; }
   button:hover { background: #2c3f4a; }
   .weather { font-size: 13px; color: var(--muted); }
@@ -95,6 +97,19 @@
           </select>
         </div>
         <button type="submit">Send result</button>
+      </form>
+    </section>
+    <section id="station" hidden>
+      <h2>Station lights</h2>
+      <form id="resetform">
+        <div class="muted">A yellow or red light at the station stays on until a person who checked the water resets it here.</div>
+        <div class="row2">
+          <select id="r-point" aria-label="Station"></select>
+          <input id="r-by" placeholder="Your name" aria-label="Your name" maxlength="40" required>
+        </div>
+        <label class="check"><input type="checkbox" id="r-checked" required> I checked this water point myself</label>
+        <button type="submit">Reset water</button>
+        <div id="r-status" class="src" role="status"></div>
       </form>
     </section>
     <section>
@@ -329,6 +344,11 @@ function renderPanel(data) {
         const o = document.createElement('option'); o.value = p.id; o.textContent = `${p.id} ${p.name}`; s.appendChild(o);
       }
     });
+    const rsel = document.getElementById('r-point');
+    data.points.filter(p => (data.stations || []).includes(p.id)).forEach(p => {
+      const o = document.createElement('option'); o.value = p.id; o.textContent = `${p.id} ${p.name}`; rsel.appendChild(o);
+    });
+    document.getElementById('station').hidden = !rsel.options.length;
     filledSelect = true;
     const firstSalty = data.points.find(p => p.salt === 'red');
     selectPoint((data.points.find(p => p.id === 'wp07') || firstSalty || data.points[0]).id);
@@ -342,6 +362,24 @@ document.getElementById('testform').addEventListener('submit', async e => {
                            test: document.getElementById('t-test').value,
                            result: document.getElementById('t-result').value }) });
   refresh();
+});
+document.getElementById('resetform').addEventListener('submit', async e => {
+  e.preventDefault();
+  const status = document.getElementById('r-status');
+  const point = document.getElementById('r-point').value;
+  status.textContent = 'Sending…';
+  try {
+    const res = await fetch('/api/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ point_id: point, by: document.getElementById('r-by').value.trim(),
+                             checked: document.getElementById('r-checked').checked }) });
+    const body = await res.json();
+    if (!res.ok) { status.textContent = body.error || 'Reset failed.'; return; }
+    status.textContent = `Reset sent by ${body.by} (${body.ts}). The lights at ${point} go off within seconds, ` +
+                         'or as soon as the station is back online.';
+    document.getElementById('r-checked').checked = false;
+  } catch (err) {
+    status.textContent = 'Could not reach the server, try again.';
+  }
 });
 document.querySelectorAll('[data-preset]').forEach(btn => btn.addEventListener('click', async () => {
   await fetch('/api/simulate', { method: 'POST', headers: { 'Content-Type': 'application/json' },
