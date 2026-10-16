@@ -13,6 +13,7 @@ Setup on the Pi:
     pip install azure-iot-device pyserial
     export IOTHUB_DEVICE_CONN="HostName=...;DeviceId=wp07;SharedAccessKey=..."
     python pi_sender.py --serial /dev/ttyACM0      # or: --fake
+    # event WiFi blocks port 8883? add --websockets (uses port 443)
 """
 import argparse
 import json
@@ -72,11 +73,12 @@ def save_desired(patch):
 
 # ------------------------------------------------------------- connection ---
 client = None
+USE_WEBSOCKETS = False   # --websockets: MQTT over port 443 if 8883 is blocked
 
 
 def hub_reachable():
     try:
-        socket.create_connection((HOST, 8883), timeout=3).close()
+        socket.create_connection((HOST, 443 if USE_WEBSOCKETS else 8883), timeout=3).close()
         return True
     except OSError:
         return False
@@ -85,7 +87,8 @@ def hub_reachable():
 def ensure_client():
     global client
     if client is None:
-        client = IoTHubDeviceClient.create_from_connection_string(CONN, connection_retry=False)
+        client = IoTHubDeviceClient.create_from_connection_string(
+            CONN, connection_retry=False, websockets=USE_WEBSOCKETS)
         client.connect()
         client.on_twin_desired_properties_patch_received = save_desired
         save_desired(client.get_twin().get("desired", {}))
@@ -149,7 +152,10 @@ def main():
     ap.add_argument("--serial", help="e.g. /dev/ttyACM0")
     ap.add_argument("--fake", action="store_true")
     ap.add_argument("--interval", type=float, default=10, help="seconds between stored readings")
+    ap.add_argument("--websockets", action="store_true", help="use port 443 (if 8883 is blocked)")
     a = ap.parse_args()
+    global USE_WEBSOCKETS
+    USE_WEBSOCKETS = a.websockets
     source = fake_readings() if a.fake or not a.serial else serial_readings(a.serial)
 
     last_store = last_flush = 0.0

@@ -19,7 +19,7 @@ with open(os.path.join(HERE, "points.json"), encoding="utf-8") as f:
 LEVELS = ["none", "yellow", "red"]
 
 # --- Salt (measured directly via conductivity) ---------------------------
-EC_TO_TDS = 0.6            # TDS [mg/L] ~ 0.5-0.7 x EC [uS/cm]
+EC_TO_TDS = 0.5            # TDS [mg/L] ~ 0.5-0.7 x EC [uS/cm]; 0.5 matches the Pi (DFRobot method)
 TDS_YELLOW = 800           # getting salty / watch
 TDS_HUMAN_LIMIT = 1000     # above: people should avoid it
 TDS_LIVESTOCK_LIMIT = 5000 # above: not even for livestock
@@ -58,20 +58,43 @@ def haversine_km(a, b):
 # -------------------------------------------------------------------------
 # State update from one sensor reading
 # -------------------------------------------------------------------------
+FIELD_ALIASES = {            # Pi uploader field names -> internal names
+    "ec_us_cm": "ec_us",
+    "turbidity_ntu": "turb_ntu",
+    "water_temp_c": "temp_c",
+}
+MIN_VALID_EC = 5.0           # below this the TDS probe is out of the water
+
+
+def normalize_reading(r):
+    out = dict(r)
+    for src, dst in FIELD_ALIASES.items():
+        if src in r and dst not in r:
+            out[dst] = r[src]
+    return out
+
+
 def update_state(state, reading, point):
-    """Merge one reading into the stored state of a water point."""
+    """Merge one reading into the stored state of a water point.
+    Missing or implausible values (None, dry probe) keep the previous value."""
     st = dict(state)
-    ec = float(reading["ec_us"])
-    st["ec_us"] = ec
-    st["turb_ntu"] = float(reading.get("turb_ntu", st.get("turb_ntu", point["baseline_turb"])))
-    if "temp_c" in reading:
+    ec = reading.get("ec_us")
+    if ec is not None and float(ec) >= MIN_VALID_EC:
+        ec = float(ec)
+        st["ec_us"] = ec
+        # Slow moving average of conductivity: used for "rising" and "sudden jump"
+        slow = float(st.get("ec_slow", point["baseline_ec"]))
+        st["ec_slow"] = 0.97 * slow + 0.03 * ec
+        st["ec_slow_before"] = slow
+    turb = reading.get("turb_ntu")
+    if turb is not None:
+        st["turb_ntu"] = float(turb)
+    elif "turb_ntu" not in st:
+        st["turb_ntu"] = float(point["baseline_turb"])
+    if reading.get("temp_c") is not None:
         st["temp_c"] = float(reading["temp_c"])
-    st["visits_total"] = int(st.get("visits_total", 0)) + int(reading.get("visits", 0))
+    st["visits_total"] = int(st.get("visits_total", 0)) + int(reading.get("visits") or 0)
     st["last_seen"] = reading.get("ts") or datetime.now(timezone.utc).isoformat()
-    # Slow moving average of conductivity: used for "rising" and "sudden jump"
-    slow = float(st.get("ec_slow", point["baseline_ec"]))
-    st["ec_slow"] = 0.97 * slow + 0.03 * ec
-    st["ec_slow_before"] = slow
     return st
 
 
@@ -265,6 +288,22 @@ def message_for(a):
     for o in (a.get("outlook") or [])[:1]:
         lines.append(f"Outlook: {o['message']}")
     return "\n".join(lines)
+
+
+def sms_for(a):
+    """Short SMS (fits one segment even with the Twilio trial prefix). Plain GSM characters only."""
+    first = a["reasons"][0] if a["reasons"] else "check the water"
+    s = f"WATER ALERT {a['id']}: {first}."
+    if a["salt"] == "red":
+        s += " Livestock ok. Do not boil." if a["use"] == "livestock_only" else " Do not use."
+    elif a["germs"] == "red":
+        s += " Chlorinate or boil."
+    alt = a.get("alternative")
+    if alt:
+        s += f" Go to {alt['id']} ({alt['km']}km)."
+    elif a.get("outlook") and a["level"] != "red":
+        s += " Getting worse soon, plan now."
+    return s.replace("~", "")[:120]
 
 
 def open_meteo_forecast(days, precip, tmax, today=None, n=10):

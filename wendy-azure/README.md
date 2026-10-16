@@ -3,7 +3,7 @@
 Starterpaket für den Hackathon. Alles läuft mit der Azure-Toolbox (IoT Hub, Functions, Maps) plus Open-Meteo fürs Wetter.
 
 ```
-Arduino ──USB──► Pi (pi_sender.py, Puffer) ──┐
+Pi 5 + MCP3008 (../pi/uploader.py, Puffer) ──┐
                                              ├──► Azure IoT Hub ──► Function "ingest" ──► Table Storage
 simulate_points.py (13 Fake-Stellen) ────────┘                          │
                                                                         ├──► SMS (Twilio) + Telegram
@@ -22,25 +22,25 @@ Browser ──► /api/map (Azure Maps) ──► /api/state (JSON) ◄───
 | `functions/forecast.py` | Ausblick für die nächsten Tage (Salz, Keime). Hier kommen neue Vorhersagen dazu |
 | `functions/points.json` | Die 14 Wasserstellen. **Koordinaten sind Platzhalter bei Lodwar** |
 | `functions/static/map.html` | Karte für Wendy, mit Testergebnis-Formular und Demo-Knöpfen |
-| `device/pi_sender.py` | Läuft auf dem Pi: Arduino lesen, puffern, hochladen, Twin empfangen |
+| `../pi/uploader.py` | Läuft auf dem Pi: Sensoren lesen, puffern, hochladen, Twin empfangen (alt: `device/pi_sender.py` für Arduino) |
 | `device/simulate_points.py` | Simuliert die 13 Stellen ohne Hardware, mit Befehlen für die Demo |
 
-## 1. Datenvertrag (zuerst mit dem Hardware-Team abstimmen!)
+## 1. Datenvertrag (Pi → Cloud)
 
-Der Arduino schickt **eine JSON-Zeile pro Messung** über USB (9600 Baud):
+Die Station ist ein **Raspberry Pi 5 mit MCP3008** (TDS auf CH0, Trübung auf CH1), kein Arduino. Code und Anleitung: **`../pi/`** (`sensors.py`, `uploader.py`, `pi/README.md`).
+
+Der Pi schickt gepuffert `{"readings": [ {...}, ... ]}`, jede Messung so:
 
 ```json
-{"turb_ntu": 2.1, "ec_us": 655, "temp_c": 30.4, "visits": 1}
+{"deviceId": "wp07", "point_id": "wp07", "ts": "2026-10-16T19:30:00Z",
+ "tds_ppm": 281.0, "ec_us_cm": 562.0, "tds_v": 0.76,
+ "turbidity_ntu": null, "turbidity_v": 0.02, "water_temp_c": 25.0}
 ```
 
-- `ec_us`: Leitfähigkeit in µS/cm (Salz). Pflichtfeld.
-- `turb_ntu`: Trübung. Muss nicht echt in NTU sein, aber **gleiche Einheit wie `baseline_turb`** in `points.json`.
-- `temp_c`: optional
-- `visits`: Bewegungen seit der letzten Zeile (PIR)
-
-Der Pi ergänzt `point_id` und `ts` und schickt gepuffert: `{"readings": [ {...}, {...} ]}`.
-
-**Kalibrierung:** Zu Beginn klares Leitungswasser messen und die Werte bei `wp07` als `baseline_ec` und `baseline_turb` in `points.json` eintragen.
+- Die Function versteht beide Feldnamen (`ec_us_cm` oder `ec_us`, `turbidity_ntu` oder `turb_ntu`, `water_temp_c` oder `temp_c`). Der Simulator nutzt die kurzen.
+- `null` (z. B. Trübung noch nicht verkabelt) und eine trockene TDS-Sonde (< 5 µS/cm) werden ignoriert, der letzte gültige Wert bleibt.
+- Fehlt `point_id`, nimmt die Function die IoT-Hub-Geräte-ID (`wp07`).
+- Salz in mg/L = Leitfähigkeit × 0,5 (wie auf dem Pi).
 
 ## 2. Azure aufsetzen (ca. 30 Min)
 
@@ -106,11 +106,7 @@ Die Karte liegt dann unter `http://localhost:7071/api/map`.
 
 ## 4. Pi und Simulator starten
 
-```bash
-pip install azure-iot-device pyserial
-export IOTHUB_DEVICE_CONN="HostName=...;DeviceId=wp07;SharedAccessKey=..."
-python device/pi_sender.py --serial /dev/ttyACM0      # ohne Arduino: --fake
-```
+**Echter Pi:** siehe `../pi/README.md` (`uploader.py --dry-run` testen, dann ohne `--dry-run`). `device/pi_sender.py` ist die alte Arduino-Variante und wird nicht mehr gebraucht.
 
 ```powershell
 pip install azure-iot-device
@@ -122,17 +118,46 @@ Im Simulator-Fenster tippen: `salt wp03`, `dirt wp11`, `clear all`.
 
 **Prüfen, ob Daten ankommen:** `az iot hub monitor-events -n $HUB`
 
-## 5. SMS und Telegram (Redundanz)
+## 5. Benachrichtigungen: SMS (Twilio) + E-Mail (Azure Communication Services)
 
-**Telegram (5 Min):** In Telegram `@BotFather` anschreiben, `/newbot` ausführen und den Token kopieren. Dem Bot eine Nachricht schicken, dann `https://api.telegram.org/bot<TOKEN>/getUpdates` öffnen und `chat.id` ablesen.
+Jede Warnung geht über alle eingerichteten Kanäle raus (Redundanz). Nicht eingerichtete Kanäle werden übersprungen. Telegram geht optional zusätzlich.
 
-**SMS über ein Twilio-Testkonto (15 Min):** Kostenlos registrieren, eine Nummer holen und **die Empfängernummer verifizieren** (Testkonten senden nur an verifizierte Nummern, mit dem Vorsatz „Sent from your Twilio trial account“).
+**Test jederzeit:** `https://<func-name>.azurewebsites.net/api/testalert` öffnen. Die Antwort zeigt pro Kanal `sent`, `not configured` oder die Fehlermeldung.
 
+### SMS über Twilio
+1. Auf twilio.com/try-twilio registrieren, E-Mail und Handynummer bestätigen.
+2. Console: **Account SID** und **Auth Token** kopieren, **„Get a phone number“** (Testnummer).
+3. Weitere Empfänger unter *Phone Numbers → Manage → Verified Caller IDs* bestätigen (Testkonten senden nur an bestätigte Nummern).
+4. *Messaging → Settings → Geo permissions*: **Deutschland** aktivieren.
+5. ```powershell
+   az functionapp config appsettings set -n $FUNC -g $RG --settings "TWILIO_SID=AC..." "TWILIO_TOKEN=..." "TWILIO_FROM=+1..." "ALERT_SMS_TO=+49151...,+49160..." -o none
+   ```
+
+### E-Mail über Azure Communication Services
 ```powershell
-az functionapp config appsettings set -n $FUNC -g $RG --settings "TELEGRAM_TOKEN=..." "TELEGRAM_CHAT_ID=..." "TWILIO_SID=..." "TWILIO_TOKEN=..." "TWILIO_FROM=+1..." "ALERT_SMS_TO=+49..."
+az extension add --name communication --only-show-errors
+az provider show -n Microsoft.Communication --query registrationState -o tsv   # muss "Registered" sein
+az communication create -n "acs-$S" -g $RG --location global --data-location Europe -o none
+az communication email create -n "mail-$S" -g $RG --location global --data-location Europe -o none
+az communication email domain create --domain-name AzureManagedDomain --email-service-name "mail-$S" -g $RG --location global --domain-management AzureManaged -o none
+$DOMAIN_ID = az communication email domain show --domain-name AzureManagedDomain --email-service-name "mail-$S" -g $RG --query id -o tsv
+$SENDER_DOMAIN = az communication email domain show --domain-name AzureManagedDomain --email-service-name "mail-$S" -g $RG --query mailFromSenderDomain -o tsv
+az communication update -n "acs-$S" -g $RG --linked-domains $DOMAIN_ID -o none
+$ACS_CONN = az communication list-key -n "acs-$S" -g $RG --query primaryConnectionString -o tsv
+az functionapp config appsettings set -n $FUNC -g $RG --settings "ACS_CONNECTION_STRING=$ACS_CONN" "ACS_EMAIL_SENDER=DoNotReply@$SENDER_DOMAIN" "ALERT_EMAIL_TO=du@example.com" -o none
 ```
 
-Benachrichtigt wird **nur, wenn eine Stelle schlechter wird**, damit es keine SMS-Flut gibt.
+**Über das Portal (falls die CLI streikt):** „Email Communication Services“ anlegen → *Provision domains → Add domain → Azure subdomain*. Dann „Communication Services“ anlegen → *Email → Domains → Connect domain*. Connection String unter *Keys*, Absenderadresse unter der Domain (*MailFrom addresses*).
+
+**Grenzen:** Die von Azure verwaltete Domain erlaubt nur wenige Mails pro Stunde und landet anfangs gern im Spam-Ordner. Für die Demo reicht das.
+
+### Telegram (optional)
+`@BotFather` → `/newbot` → Token. Dem Bot schreiben, `https://api.telegram.org/bot<TOKEN>/getUpdates` → `chat.id`.
+```powershell
+az functionapp config appsettings set -n $FUNC -g $RG --settings "TELEGRAM_TOKEN=..." "TELEGRAM_CHAT_ID=..." -o none
+```
+
+Benachrichtigt wird **nur, wenn eine Stelle schlechter wird**, damit es keine Flut gibt. **SMS gehen nur bei Rot** (kurze Version, passt in eine SMS), E-Mail und Telegram auch bei Gelb. Zum Schutz des Testguthabens gilt ein Tageslimit: `SMS_MAX_PER_DAY` (Standard 20) als App Setting ändern. Im echten Betrieb in Kenia wäre Africa's Talking statt Twilio sinnvoll; dafür muss nur `_send_sms` getauscht werden.
 
 ## 6. Demo-Ablauf
 
@@ -165,7 +190,7 @@ Die Optik: Auf der Karte zeigt ein **Ring** um eine Stelle „wird bald schlecht
 
 - **Grenzwerte und Gewichte** in `logic.py` (Salz 800/1000/5000 mg/L, Gewichte der Keim-Formel). Mit WHH abstimmen.
 - **Koordinaten** in `points.json`: grob bei Lodwar. Wenn möglich durch echte ersetzen.
-- **Umrechnung** Leitfähigkeit → Salz: Faktor 0,6 (üblich sind 0,5–0,7).
+- **Umrechnung** Leitfähigkeit → Salz: Faktor 0,5 wie auf dem Pi (üblich sind 0,5–0,7).
 - **13 von 14 Stellen** sind simuliert.
 
 ## 8. Fehlersuche

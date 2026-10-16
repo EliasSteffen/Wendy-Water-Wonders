@@ -1,0 +1,14 @@
+[Unit]
+Description=Wendy's Early Signal - water sensor uploader
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=user
+WorkingDirectory=/home/user/water-quality
+ExecStart=/home/user/water-quality/.venv/bin/python /home/user/water-quality/uploader.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

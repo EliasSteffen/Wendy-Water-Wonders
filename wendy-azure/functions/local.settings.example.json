@@ -17,6 +17,10 @@
     "TWILIO_FROM": "",
     "ALERT_SMS_TO": "+49...",
 
+    "ACS_CONNECTION_STRING": "",
+    "ACS_EMAIL_SENDER": "DoNotReply@<guid>.azurecomm.net",
+    "ALERT_EMAIL_TO": "you@example.com",
+
     "TELEGRAM_TOKEN": "",
     "TELEGRAM_CHAT_ID": ""
   },

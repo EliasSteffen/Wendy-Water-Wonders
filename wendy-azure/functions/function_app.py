@@ -12,6 +12,7 @@ Endpoints / triggers
 import base64
 import hashlib
 import hmac
+import html
 import json
 import logging
 import os
@@ -74,38 +75,104 @@ def _assess_all(tc):
 
 
 # ---------------------------------------------------------- notifications --
+def _http_error(e):
+    """Readable error text incl. the provider's response body (e.g. Twilio's reason)."""
+    body = ""
+    if hasattr(e, "read"):
+        try:
+            body = e.read().decode("utf-8", "ignore")[:300]
+        except Exception:
+            pass
+    return f"{e} {body}".strip()
+
+
+def _sms_budget_ok(n):
+    """Daily SMS cap (SMS_MAX_PER_DAY, default 20) so demos don't burn the trial credit."""
+    limit = int(os.environ.get("SMS_MAX_PER_DAY", "20"))
+    try:
+        tc = _table()
+        key = "sms_" + datetime.now(timezone.utc).strftime("%Y%m%d")
+        count = int(_get(tc, "meta", key).get("count", 0))
+        if count + n > limit:
+            return False
+        _put(tc, "meta", key, {"count": count + n})
+    except Exception as e:
+        logging.warning("SMS budget check failed (sending anyway): %s", e)
+    return True
+
+
 def _send_sms(text):
+    """Channel 1: SMS via Twilio REST API (short text, only for urgent alerts)."""
     sid, tok = os.environ.get("TWILIO_SID"), os.environ.get("TWILIO_TOKEN")
     frm, to = os.environ.get("TWILIO_FROM"), os.environ.get("ALERT_SMS_TO")
     if not all((sid, tok, frm, to)):
-        return
+        return "not configured"
+    numbers = [n.strip() for n in to.split(",") if n.strip()]
+    if not _sms_budget_ok(len(numbers)):
+        return "skipped (daily SMS cap reached)"
     auth = base64.b64encode(f"{sid}:{tok}".encode()).decode()
-    for number in to.split(","):
-        data = urllib.parse.urlencode({"To": number.strip(), "From": frm, "Body": text}).encode()
+    results = []
+    for number in numbers:
+        data = urllib.parse.urlencode({"To": number, "From": frm, "Body": text[:1500]}).encode()
         req = urllib.request.Request(
             f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json", data=data,
             headers={"Authorization": f"Basic {auth}"})
         try:
             urllib.request.urlopen(req, timeout=10)
+            results.append(f"{number}: sent")
         except Exception as e:
-            logging.error("SMS failed: %s", e)
+            logging.error("SMS to %s failed: %s", number, _http_error(e))
+            results.append(f"{number}: error {_http_error(e)}")
+    return "; ".join(results)
+
+
+def _send_email(text):
+    """Channel 2: e-mail via Azure Communication Services (Azure-native)."""
+    conn = os.environ.get("ACS_CONNECTION_STRING")
+    sender, to = os.environ.get("ACS_EMAIL_SENDER"), os.environ.get("ALERT_EMAIL_TO")
+    if not all((conn, sender, to)):
+        return "not configured"
+    try:
+        from azure.communication.email import EmailClient   # imported lazily on purpose
+        client = EmailClient.from_connection_string(conn)
+        lines = text.splitlines()
+        message = {
+            "senderAddress": sender,
+            "recipients": {"to": [{"address": a.strip()} for a in to.split(",") if a.strip()]},
+            "content": {
+                "subject": f"[Wendy's Early Signal] {lines[0][:100] if lines else 'Alert'}",
+                "plainText": text,
+                "html": "<div style='font-family:Segoe UI,Arial,sans-serif;font-size:15px'>"
+                        + "<br>".join(html.escape(l) for l in lines) + "</div>",
+            },
+        }
+        client.begin_send(message)   # the request is sent here; no need to wait for the poller
+        return "sent"
+    except Exception as e:
+        logging.error("Email failed: %s", e)
+        return f"error {e}"
 
 
 def _send_telegram(text):
+    """Optional channel 3: Telegram bot."""
     tok, chat = os.environ.get("TELEGRAM_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
     if not (tok and chat):
-        return
+        return "not configured"
     data = urllib.parse.urlencode({"chat_id": chat, "text": text}).encode()
     try:
         urllib.request.urlopen(f"https://api.telegram.org/bot{tok}/sendMessage", data=data, timeout=10)
+        return "sent"
     except Exception as e:
-        logging.error("Telegram failed: %s", e)
+        logging.error("Telegram failed: %s", _http_error(e))
+        return f"error {_http_error(e)}"
 
 
-def _notify(text):
-    logging.info("ALERT:\n%s", text)
-    _send_sms(text)        # channel 1
-    _send_telegram(text)   # channel 2 (redundancy)
+def _notify(text, sms=None, urgent=True):
+    """Send the alert over every configured channel (redundancy).
+    SMS gets a short version and is only used for urgent (red) alerts."""
+    logging.info("ALERT (urgent=%s):\n%s", urgent, text)
+    return {"sms": _send_sms(sms or text[:150]) if urgent else "skipped (not urgent)",
+            "email": _send_email(text), "telegram": _send_telegram(text)}
 
 
 # ------------------------------------------------------------ device twin --
@@ -160,9 +227,12 @@ def _refresh_and_notify(tc):
             _put(tc, "notify", a["id"], cur)
 
     # One SMS per point if few changed, otherwise one summary (no SMS flood)
+    # SMS only for red (urgent); e-mail/Telegram also for yellow. Few changes -> one message each,
+    # many changes -> one summary (no flood, saves SMS credit).
     if 0 < len(escalated_points) <= 2:
         for a in escalated_points:
-            _notify(logic.message_for(a))
+            urgent = a["level"] == "red" or a["outlook_level"] == "red"
+            _notify(logic.message_for(a), sms=logic.sms_for(a), urgent=urgent)
     elif len(escalated_points) > 2:
         red = [a["id"] for a in escalated_points if a["level"] == "red"]
         yellow = [a["id"] for a in escalated_points if a["level"] == "yellow"]
@@ -171,7 +241,10 @@ def _refresh_and_notify(tc):
         _notify(f"WATER ALERT: {len(escalated_points)} water points changed.\n"
                 f"Warning: {', '.join(red) or '-'}\nWatch: {', '.join(yellow) or '-'}\n"
                 f"Getting worse soon: {', '.join(outlook) or '-'}\n"
-                f"Test today: {prio}")
+                f"Test today: {prio}",
+                sms=(f"WATER ALERT: {len(escalated_points)} points changed. "
+                     f"Warning: {','.join(red) or '-'}. Test today: {prio.replace(' ', '')}")[:120],
+                urgent=bool(red or outlook))
     return result
 
 
@@ -185,15 +258,19 @@ def ingest(event: func.EventHubEvent):
         logging.warning("Ignoring non-JSON message")
         return
     readings = body["readings"] if isinstance(body, dict) and "readings" in body else [body]
+    # Fallback if a message has no point_id: use the IoT Hub device id (e.g. "wp07")
+    device_id = (getattr(event, "iothub_metadata", None) or {}).get("connection-device-id")
     tc = _table()
     for r in readings:
-        pid = r.get("point_id")
+        r = logic.normalize_reading(r)
+        pid = r.get("point_id") or (device_id if device_id in logic.POINTS else None)
         if pid not in logic.POINTS:
-            logging.warning("Unknown point_id %s", pid)
+            logging.warning("Unknown point_id %s (device %s)", pid, device_id)
             continue
         st = logic.update_state(_get(tc, "point", pid), r, logic.POINTS[pid])
         _put(tc, "point", pid, st)
-        _put_history(tc, pid, st)
+        if "ec_us" in st:
+            _put_history(tc, pid, st)
     _refresh_and_notify(tc)
 
 
@@ -309,6 +386,16 @@ def map_page(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(html, mimetype="text/html")
 
 
+@app.route(route="testalert", methods=["GET", "POST"], auth_level=func.AuthLevel.ANONYMOUS)
+def testalert(req: func.HttpRequest) -> func.HttpResponse:
+    """Sends one test message over all channels and reports what happened per channel."""
+    status = _notify("TEST ALERT from Wendy's Early Signal.\n"
+                     "If you can read this, this channel works.\n"
+                     f"Sent {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC",
+                     sms="TEST from Wendy's Early Signal: SMS works.", urgent=True)
+    return _json(status)
+
+
 @app.route(route="testresult", methods=["POST"], auth_level=func.AuthLevel.ANONYMOUS)
 def testresult(req: func.HttpRequest) -> func.HttpResponse:
     try:
@@ -323,7 +410,7 @@ def testresult(req: func.HttpRequest) -> func.HttpResponse:
     st["last_test"] = {"test": test, "result": result, "ts": now}
     st["last_test_ts"] = now
     _put(tc, "point", pid, st)
-    _notify(f"Test result received: {pid} {test.upper()} {result}.")
+    _notify(f"Test result received: {pid} {test.upper()} {result}.", urgent=False)
     return _json(_refresh_and_notify(tc))
 
 
