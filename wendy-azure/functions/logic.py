@@ -223,20 +223,22 @@ def assess(point, st, weather, now=None):
 # Cross-point logic (needs all points -> runs in the cloud)
 # -------------------------------------------------------------------------
 def best_alternative(bad, assessed, problem):
-    """Nearest point without the same problem and with recent data."""
+    """Nearest white (or else yellow) point with recent data. Never a red one."""
     cands = []
     for a in assessed:
         if a["id"] == bad["id"] or a["no_data"]:
             continue
         if a["data_age_h"] is None or a["data_age_h"] > MAX_DATA_AGE_H:
             continue
-        if a[problem] != "none" or (a.get("manual") and a["level"] != "none"):
+        # never send people to a red point; white is preferred over yellow
+        if a["level"] == "red" or a["salt"] == "red" or a[problem] == "red":
             continue
         km = haversine_km(bad, a)
         if km > MAX_ALT_KM:
             continue
         load = min(a["people"] / 1000.0, 1.5)
-        cands.append((km * (1 + 0.5 * load), km, a))
+        penalty = 1.6 if a["level"] == "yellow" else 1.0
+        cands.append((km * (1 + 0.5 * load) * penalty, km, a))
     if not cands:
         return None
     _, km, a = min(cands, key=lambda c: c[0])
@@ -291,6 +293,9 @@ def weather_features(days, precip, today=None):
         "dry_days": dry_days,
         "dry_spell_before_rain": dry_before,
         "rain_forecast_48h": round(sum(precip[i + 1: i + 3]), 1),
+        # daily rain of the 14 days before today, for the dashboard's rain view
+        "past": [{"date": d, "rain_mm": round(p, 1)}
+                 for d, p in zip(days[max(0, i - 14): i], precip[max(0, i - 14): i])],
         "updated": datetime.now(timezone.utc).isoformat(),
         "source": "open-meteo",
     }

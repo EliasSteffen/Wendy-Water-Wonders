@@ -79,6 +79,12 @@ def _assess_all(tc):
         if ov:   # colour set by hand on the dashboard (demo); no SMS is triggered by this
             a["level"], a["manual"] = ov["level"], True
             a["reasons"].insert(0, "set by hand on the dashboard")
+        elif not a["live"] and a["level"] == "red":
+            # Only the real station can raise a red warning; simulated points stay yellow
+            a["level"] = "yellow"
+        # "Getting worse fast": salt rising or bad outlook while still under the drinking limit
+        a["worsening"] = (a["level"] == "yellow" and (a["tds"] or 0) < logic.TDS_HUMAN_LIMIT
+                          and (a["salt_trend"] == "rising" or a["outlook_level"] == "red"))
     logic.add_alternatives(assessed)
     return {"points": assessed,
             "priorities": logic.test_priorities(assessed),
@@ -360,14 +366,18 @@ def _put_history(tc, pid, st):
         ms = int(logic.parse_ts(st["last_seen"]).timestamp() * 1000)
     except Exception:
         ms = int(time.time() * 1000)
-    tc.upsert_entity({
+    row = {
         "PartitionKey": f"hist_{pid}",
         "RowKey": f"{9999999999999 - ms:013d}",
         "ts": st["last_seen"],
         "ec_us": float(st["ec_us"]),
         "tds": int(round(st["ec_us"] * logic.EC_TO_TDS)),
         "turb_ntu": float(st.get("turb_ntu", 0)),
-    }, mode=UpdateMode.REPLACE)
+    }
+    for k in ("turb_last", "ph"):         # raw sensor values for the chart; missing = not measured
+        if st.get(k) is not None:
+            row[k] = float(st[k])
+    tc.upsert_entity(row, mode=UpdateMode.REPLACE)
 
 
 @app.route(route="history", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
@@ -381,14 +391,15 @@ def history(req: func.HttpRequest) -> func.HttpResponse:
         n = 150
     rows = []
     for e in _table().query_entities(f"PartitionKey eq 'hist_{pid}'", results_per_page=n):
-        rows.append({"ts": e["ts"], "tds": e["tds"], "ec_us": e["ec_us"], "turb_ntu": e["turb_ntu"]})
+        rows.append({"ts": e["ts"], "tds": e["tds"], "ec_us": e["ec_us"], "turb_ntu": e["turb_ntu"],
+                     "turb": e.get("turb_last"), "ph": e.get("ph")})
         if len(rows) >= n:
             break
     rows.reverse()  # oldest first for the chart
     return _json({
         "id": pid, "name": logic.POINTS[pid]["name"], "points": rows,
         "limits": {"yellow": logic.TDS_YELLOW, "human": logic.TDS_HUMAN_LIMIT,
-                   "livestock": logic.TDS_LIVESTOCK_LIMIT},
+                   "livestock": logic.TDS_LIVESTOCK_LIMIT, "ph": list(logic.PH_OK)},
     })
 
 
