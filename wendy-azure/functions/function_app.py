@@ -78,7 +78,7 @@ def _assess_all(tc):
         ov = states.get(a["id"], {}).get("override")
         if ov:   # colour set by hand on the dashboard (demo); no SMS is triggered by this
             a["level"], a["manual"] = ov["level"], True
-            a["reasons"].insert(0, "colour set manually")
+            a["reasons"].insert(0, "set by hand on the dashboard")
     logic.add_alternatives(assessed)
     return {"points": assessed,
             "priorities": logic.test_priorities(assessed),

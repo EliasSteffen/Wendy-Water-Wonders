@@ -21,7 +21,7 @@ Browser ──► /api/map (Azure Maps) ──► /api/state (JSON) ◄───
 | `functions/logic.py` | Risikologik: Salz, Keime, Ausweichstelle, Testpriorität. Reines Python, lokal testbar |
 | `functions/forecast.py` | Ausblick für die nächsten Tage (Salz, Keime). Hier kommen neue Vorhersagen dazu |
 | `functions/points.json` | Die 14 Wasserstellen. **Koordinaten sind Platzhalter bei Lodwar** |
-| `functions/static/map.html` | Dashboard für Wendy: Karte, Kennzahlen, Salzkurve, Reset und Farbe pro Stelle, verstecktes Demo-Fenster |
+| `functions/static/map.html` | Dashboard für Wendy: Karte, Lage, Salzkurve, Reset und Farbe pro Stelle |
 | `../pi/uploader.py` | Läuft auf dem Pi: Sensoren lesen, puffern, hochladen, Twin empfangen (alt: `device/pi_sender.py` für Arduino) |
 | `device/simulate_points.py` | Simuliert die 13 Stellen ohne Hardware, mit Befehlen für die Demo |
 
@@ -171,16 +171,14 @@ Benachrichtigt wird **nur, wenn eine Stelle schlechter wird**, damit es keine Fl
 
 ## 6. Demo-Ablauf
 
-Das Dashboard zeigt nur das Wichtigste: Kennzahlen oben, Karte, „Needs attention“, die ausgewählte Stelle mit Salzkurve und die nächsten 10 Tage. Die Demo-Knöpfe sind versteckt: Knopf **Demo** unten rechts auf der Karte oder Taste **D**.
+Das Dashboard zeigt nur Gelb (Watch) und Rot (Warning). Stellen ohne Auffälligkeit sind weiße Punkte („no anomaly measured“, nie „sicher“). Ein gelber Ring heißt: laut Wettervorhersage wird es dort bald schlimmer. Rechts stehen oben ein Satz zur Lage und der Status der LIVE-Station, darunter die Stellen, die Aufmerksamkeit brauchen, und dann die angeklickte Stelle mit Salzkurve.
 
-Bei jeder Stelle (auf der Karte anklicken) gibt es unten **Set light** (blau, gelb, rot von Hand setzen) und **Reset**. Von Hand gesetzte Farben lösen keine SMS aus. **Reset** setzt die Stelle zurück: Testergebnisse und Handfarbe weg, der aktuelle Messwert gilt als neuer Normalwert, und die nächste Auswertung schickt keine Alarme. Bei der LIVE-Station (wp07) vorher Name eintragen und „I checked the water“ anhaken: Reset schaltet dann auch die Lampen an der Station aus (über den Device Twin). Eine von Hand gesetzte Farbe geht ebenfalls an die Lampen der Station. **Reset all** im Demo-Fenster macht das für alle Stellen und schaltet das Demo-Wetter aus. Läuft der Simulator mit einem Salz-Ereignis, dort zusätzlich `clear all` tippen.
+Bei jeder Stelle gibt es **Set yellow**, **Set red** und **Reset**. Eine von Hand gesetzte Farbe schickt keine SMS. Bei der LIVE-Station geht sie auch an die Lampen, aber nur nach oben. **Reset** setzt die Stelle zurück: Testergebnisse und Handfarbe sind weg, der aktuelle Messwert gilt als neuer Normalwert, und es gehen keine Alarme raus. Bei wp07 braucht Reset deinen Namen und das Häkchen „I checked the water myself“, dann gehen auch die Lampen an der Station aus. Sie gehen wieder an, wenn die Station weiter salziges oder trübes Wasser misst. **Reset all points** unten rechts setzt alle Stellen zurück und schaltet ein Demo-Wetter aus. Läuft der Simulator mit einem Salz-Ereignis, dort zusätzlich `clear all` tippen.
 
-1. Vorher: **Reset all** und im Simulator `clear all`. Normal ist dann fast alles blau (wp10 gelb, leicht erhöhtes Salz).
-2. Salz ins Wasser an wp07 (LIVE). wp07 wird rot, die Linie zur Ausweichstelle erscheint, die SMS kommt.
-3. Demo → **Heavy rain**: Brunnen ohne Schutz werden gelb oder rot, „Test today“ sortiert sich neu.
-4. Demo → **Germ test +** für die ausgewählte Stelle → rot. Danach **Germ test −** oder **Reset**.
-5. Demo → **Dry & hot**, dann im Simulator `salt wp03`: wp03 bekommt den orangen Ring („getting worse soon“).
-6. Demo → **Reset all**.
+1. Vorher: **Reset all points**, im Simulator `clear all`, Sonde in normales Wasser.
+2. Salz ins Wasser an wp07 (LIVE). wp07 wird rot, die Lampe an der Station geht auf Rot, die Linie zur Ausweichstelle erscheint, die SMS kommt.
+3. Sonde zurück in normales Wasser, bei wp07 Name eintragen, Häkchen setzen, **Reset**.
+4. Optional eine andere Stelle anklicken und **Set yellow** oder **Set red** zeigen.
 
 ## Ausblick (Outlook) und neue Vorhersagen
 

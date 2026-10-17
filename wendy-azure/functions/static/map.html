@@ -4,220 +4,163 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Wendy's Early Signal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap">
 <link rel="stylesheet" href="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.css">
 <script src="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
-  :root { --bg:#f3f5f8; --card:#ffffff; --fg:#0f172a; --muted:#64748b; --line:#e2e8f0;
-          --blue:#2563eb; --yellow:#eab308; --red:#dc2626; --gray:#94a3b8; --orange:#f97316; }
+  :root {
+    --ink: #1d2327; --soft: #5b6670; --rule: #d9dee2; --paper: #ffffff; --wash: #f2f4f5;
+    --red: #d1242f; --yellow: #e3b008; --yellow-text: #8a6100;
+  }
   * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg);
-               font-family: "Segoe UI", system-ui, -apple-system, sans-serif; font-size: 15px; }
-  .app { display: grid; grid-template-rows: auto 1fr; height: 100%; }
-
-  /* header */
-  header { display: flex; align-items: center; gap: 24px; padding: 12px 20px; background: var(--card);
-           border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-  .brand h1 { font-size: 22px; margin: 0; letter-spacing: -.01em; }
-  .brand span { color: var(--muted); font-size: 13px; }
-  .kpis { display: flex; gap: 10px; margin-left: auto; flex-wrap: wrap; }
-  .kpi { min-width: 120px; padding: 8px 14px; border-radius: 10px; background: var(--bg); border-left: 4px solid var(--line); }
-  .kpi b { display: block; font-size: 24px; line-height: 1.1; }
-  .kpi span { font-size: 12px; color: var(--muted); }
-  .kpi.red { border-left-color: var(--red); }  .kpi.red b { color: var(--red); }
-  .kpi.yellow { border-left-color: var(--yellow); }  .kpi.yellow b { color: #a16207; }
-  .kpi.live { border-left-color: var(--blue); }
-  .kpi.live.off { border-left-color: var(--gray); }
-  .updated { font-size: 12px; color: var(--muted); }
-
-  /* layout */
-  main { display: grid; grid-template-columns: 1fr 400px; min-height: 0; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 16px/1.45 "Atkinson Hyperlegible", system-ui, sans-serif; }
+  .app { display: grid; grid-template-columns: 1fr 380px; height: 100%; }
   .mapwrap { position: relative; min-height: 0; }
   #map { position: absolute; inset: 0; }
-  aside { overflow-y: auto; padding: 16px; display: grid; gap: 14px; align-content: start; border-left: 1px solid var(--line); }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
-  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
-  .muted { color: var(--muted); }
-  .small { font-size: 13px; }
+  aside { overflow-y: auto; padding: 22px 24px 18px; border-left: 1px solid var(--rule); display: flex; flex-direction: column; }
+
+  h1 { font-size: 15px; font-weight: 700; margin: 0; color: var(--soft); }
+  .headline { font-size: 24px; line-height: 1.2; font-weight: 700; margin: 6px 0 4px; }
+  .station { margin: 0; color: var(--soft); font-size: 15px; }
+  .station.off { color: var(--red); }
+
+  section { padding: 14px 0; border-top: 1px solid var(--rule); }
+  header { padding-bottom: 14px; }
+
+  /* points that need attention */
+  .row { display: grid; grid-template-columns: 14px 1fr auto; gap: 10px; align-items: baseline; width: 100%;
+         padding: 7px 8px; margin: 0 -8px; border: 0; background: none; font: inherit; color: inherit; text-align: left;
+         cursor: pointer; border-radius: 4px; }
+  .row:hover, .row.sel { background: var(--wash); }
+  .row b { font-size: 16px; }
+  .row span.why { display: block; color: var(--soft); font-size: 14px; }
+  .row .ppl { color: var(--soft); font-size: 14px; }
+  .mark { width: 12px; height: 12px; border-radius: 2px; align-self: center; }
+  .mark.red { background: var(--red); } .mark.yellow { background: var(--yellow); }
+  .mark.ring { border: 3px solid var(--yellow); border-radius: 50%; }
+  .empty { color: var(--soft); margin: 0; }
+  .next { margin: 12px 0 0; font-size: 14px; color: var(--soft); }
+  .next b { color: var(--ink); font-weight: 400; }
+
+  /* selected point */
+  .title { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .title h2 { font-size: 21px; margin: 0; }
+  .live { font-size: 13px; font-weight: 700; color: var(--ink); border: 1.5px solid var(--ink); border-radius: 3px; padding: 0 5px; margin-left: 6px; vertical-align: 3px; }
+  .status { font-weight: 700; white-space: nowrap; }
+  .status.red { color: var(--red); } .status.yellow { color: var(--yellow-text); } .status.none { color: var(--soft); }
+  .sub { color: var(--soft); font-size: 14px; margin: 2px 0 14px; }
+  .facts { display: grid; grid-template-columns: repeat(3, 1fr); margin: 0 0 12px; }
+  .facts div { display: flex; flex-direction: column-reverse; }
+  .facts dd { margin: 0; font-size: 24px; font-weight: 700; line-height: 1.1; }
+  .facts dt { font-size: 13px; color: var(--soft); }
+  .facts dd.rising { color: var(--red); }
+  .chartbox { position: relative; height: 110px; margin-bottom: 10px; }
+  .advice { margin: 0; padding-left: 18px; font-size: 15px; }
+  .advice li + li { margin-top: 3px; }
+  .alt { margin: 10px 0 0; font-size: 15px; }
+
+  .confirm { display: grid; gap: 6px; margin-bottom: 10px; font-size: 14px; }
+  .confirm[hidden] { display: none; }
+  .confirm input[type=text] { font: inherit; padding: 6px 8px; border: 1px solid var(--rule); border-radius: 3px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  button.act { font: inherit; font-size: 15px; padding: 6px 12px; border-radius: 3px; cursor: pointer;
+               border: 1.5px solid var(--ink); background: var(--paper); color: var(--ink); }
+  button.act:hover { background: var(--wash); }
+  button.act.yellow { border-color: var(--yellow); }
+  button.act.red { border-color: var(--red); color: var(--red); }
+  .msg { min-height: 1.4em; margin: 6px 0 8px; font-size: 14px; color: var(--soft); }
+
+  footer { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--rule); display: flex; justify-content: space-between;
+           align-items: center; gap: 12px; font-size: 13px; color: var(--soft); }
+  .link { font: inherit; border: 0; background: none; color: var(--soft); text-decoration: underline; cursor: pointer; padding: 0; }
+  .link:hover { color: var(--ink); }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
   /* legend on the map */
-  .legend { position: absolute; left: 12px; bottom: 12px; background: #fffffff0; border-radius: 10px; padding: 8px 12px;
-            display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; box-shadow: 0 2px 8px #0002; max-width: calc(100% - 24px); }
-  .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
-  .ring { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 3px solid var(--orange); margin-right: 5px; vertical-align: -2px; }
-
-  /* needs attention */
-  .item { display: grid; grid-template-columns: 14px 1fr auto; gap: 10px; align-items: center; padding: 8px 6px;
-          border-radius: 8px; cursor: pointer; }
-  .item:hover, .item.sel { background: var(--bg); }
-  .item b { display: block; font-size: 14px; }
-  .item small { color: var(--muted); display: block; font-size: 12px; }
-  .item .ppl { font-size: 12px; color: var(--muted); text-align: right; }
-  .calm { padding: 8px 6px; color: var(--muted); }
-  .testtoday { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 13px; }
-
-  /* point detail */
-  .dhead { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
-  .dhead h3 { margin: 0; font-size: 18px; }
-  .badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .06em; padding: 2px 7px; border-radius: 99px;
-           background: var(--blue); color: #fff; vertical-align: 2px; margin-left: 6px; }
-  .status { font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 99px; color: #fff; white-space: nowrap; }
-  .status.none { background: var(--blue); } .status.yellow { background: var(--yellow); color: #422006; }
-  .status.red { background: var(--red); } .status.nodata { background: var(--gray); }
-  .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
-  .metrics div { background: var(--bg); border-radius: 8px; padding: 8px 10px; }
-  .metrics b { display: block; font-size: 20px; }
-  .metrics span { font-size: 12px; color: var(--muted); }
-  .metrics .up { color: var(--red); }
-  .chartbox { position: relative; height: 140px; }
-  .advice { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
-  .alt { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: #eff6ff; font-size: 14px; }
-  .controls { display: flex; gap: 6px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); flex-wrap: wrap; }
-  .controls .lbl { font-size: 12px; color: var(--muted); margin-right: 2px; }
-  button { font: inherit; font-size: 14px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line);
-           background: var(--card); color: var(--fg); cursor: pointer; }
-  button:hover { background: var(--bg); }
-  .sw { width: 32px; height: 32px; padding: 0; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px var(--line); }
-  .sw.none { background: var(--blue); } .sw.yellow { background: var(--yellow); } .sw.red { background: var(--red); }
-  .sw:hover { transform: scale(1.1); }
-  .reset { margin-left: auto; }
-  .station { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: center; margin-top: 12px;
-             padding: 10px; border-radius: 8px; background: var(--bg); font-size: 13px; }
-  .station[hidden] { display: none; }
-  .station .hint { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
-  .station input[type=text] { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; min-width: 0; }
-  .station label { white-space: nowrap; }
-  .msg { margin-top: 8px; font-size: 13px; color: var(--muted); }
-
-  /* 10-day strip */
-  .strip { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; }
-  .day { display: grid; grid-template-rows: auto 40px auto auto; justify-items: center; font-size: 11px; color: var(--muted); }
-  .day .bar { align-self: end; width: 70%; background: #38bdf8; border-radius: 3px 3px 0 0; min-height: 2px; }
-  .day .mm { color: var(--fg); }
-  .day.hot .t { color: var(--orange); font-weight: 600; }
-  .note { margin-top: 8px; font-size: 13px; color: var(--muted); }
-
-  /* demo drawer (hidden by default; button or key "d") */
-  #demo-toggle { position: absolute; right: 12px; bottom: 12px; font-size: 12px; padding: 5px 10px; opacity: .75; box-shadow: 0 2px 8px #0002; }
-  #demo-toggle:hover { opacity: 1; }
-  .drawer { position: absolute; right: 12px; bottom: 50px; width: 270px; background: var(--card); border-radius: 12px;
-            box-shadow: 0 6px 24px #0003; padding: 14px; display: grid; gap: 12px; }
-  .drawer[hidden] { display: none; }
-  .drawer .row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .drawer .row.three { grid-template-columns: 1fr 1fr 1fr; }
-  .drawer button { font-size: 13px; padding: 6px 8px; }
-  .drawer h2 { margin-bottom: 6px; }
-  .danger { border-color: var(--red); color: var(--red); font-weight: 600; }
+  .legend { position: absolute; left: 10px; bottom: 10px; background: var(--paper); border-radius: 3px; padding: 7px 10px;
+            display: flex; gap: 14px; flex-wrap: wrap; font-size: 14px; max-width: calc(100% - 20px); }
+  .legend i { display: inline-block; width: 11px; height: 11px; margin-right: 5px; vertical-align: -1px; border-radius: 50%; }
 
   @media (max-width: 900px) {
-    main { grid-template-columns: 1fr; grid-template-rows: 55vh auto; }
-    aside { border-left: 0; }
-    .kpis { margin-left: 0; }
+    .app { grid-template-columns: 1fr; grid-template-rows: 55vh auto; height: auto; }
+    .mapwrap { height: 55vh; }
+    aside { border-left: 0; padding: 18px 16px; }
   }
 </style>
 </head>
 <body>
 <div class="app">
-  <header>
-    <div class="brand">
-      <h1>Wendy's Early Signal</h1>
-      <span>Turkana, Kenya · 14 water points</span>
+  <div class="mapwrap">
+    <div id="map" aria-label="Map of the water points"></div>
+    <div class="legend">
+      <span><i style="background:var(--red)"></i>Warning</span>
+      <span><i style="background:var(--yellow)"></i>Watch</span>
+      <span><i style="background:#fff;border:2px solid var(--ink)"></i>No anomaly measured</span>
+      <span><i style="border:3px solid var(--yellow)"></i>Likely to get worse</span>
     </div>
-    <div class="kpis">
-      <div class="kpi red"><b id="k-red">–</b><span>Warnings</span></div>
-      <div class="kpi yellow"><b id="k-yellow">–</b><span>Watch</span></div>
-      <div class="kpi"><b id="k-people">–</b><span>People affected</span></div>
-      <div class="kpi live" id="k-live-box"><b id="k-live">–</b><span id="k-live-l">Live station</span></div>
-    </div>
-    <div class="updated" id="updated"></div>
-  </header>
+  </div>
 
-  <main>
-    <div class="mapwrap">
-      <div id="map"></div>
-      <div class="legend">
-        <span><span class="dot" style="background:var(--blue)"></span>No anomaly measured</span>
-        <span><span class="dot" style="background:var(--yellow)"></span>Watch</span>
-        <span><span class="dot" style="background:var(--red)"></span>Warning</span>
-        <span><span class="ring"></span>Getting worse soon</span>
+  <aside>
+    <header>
+      <h1>Wendy's Early Signal, Turkana</h1>
+      <p class="headline" id="headline">Loading…</p>
+      <p class="station" id="station"></p>
+    </header>
+
+    <section aria-label="Water points that need attention">
+      <div id="list"></div>
+      <p class="next" id="next"></p>
+    </section>
+
+    <section id="detail" aria-live="polite">
+      <div class="title">
+        <h2 id="d-name">–</h2>
+        <span class="status" id="d-status"></span>
       </div>
-      <button id="demo-toggle" title="Demo controls (key D)">Demo</button>
-      <div id="demo" class="drawer" hidden>
-        <div>
-          <h2>Weather scenario</h2>
-          <div class="row three">
-            <button data-preset="heavy_rain">Heavy rain</button>
-            <button data-preset="dry">Dry &amp; hot</button>
-            <button data-preset="reset">Real</button>
-          </div>
-        </div>
-        <div>
-          <h2>Test result for <span id="demo-pt">–</span></h2>
-          <div class="row">
-            <button data-test="positive">Germ test +</button>
-            <button data-test="negative">Germ test −</button>
-          </div>
-        </div>
-        <div class="row">
-          <button id="clouds">Clouds</button>
-          <button id="reset-all" class="danger">Reset all</button>
-        </div>
+      <p class="sub" id="d-sub"></p>
+      <dl class="facts">
+        <div><dt>Salt, mg/L</dt><dd id="d-tds">–</dd></div>
+        <div><dt>Germ risk</dt><dd id="d-germ">–</dd></div>
+        <div><dt>People</dt><dd id="d-people">–</dd></div>
+      </dl>
+      <div class="confirm" id="d-confirm" hidden>
+        <input type="text" id="d-by" placeholder="Your name (to switch the station lights off)" maxlength="40" aria-label="Your name">
+        <label><input type="checkbox" id="d-checked"> I checked the water myself</label>
       </div>
-    </div>
+      <div class="actions">
+        <button class="act yellow" data-level="yellow">Set yellow</button>
+        <button class="act red" data-level="red">Set red</button>
+        <button class="act" id="d-reset">Reset</button>
+      </div>
+      <p class="msg" id="d-msg" role="status"></p>
+      <div class="chartbox"><canvas id="chart" aria-label="Salt over time"></canvas></div>
+      <ul class="advice" id="d-advice"></ul>
+      <p class="alt" id="d-alt" hidden></p>
 
-    <aside>
-      <section class="card">
-        <h2>Needs attention</h2>
-        <div id="attention"><div class="calm">loading…</div></div>
-        <div id="testtoday" class="testtoday"></div>
-      </section>
+    </section>
 
-      <section class="card" id="detail">
-        <div class="dhead">
-          <div><h3 id="d-name">–</h3><span id="d-sub" class="muted small"></span></div>
-          <span id="d-status" class="status nodata">–</span>
-        </div>
-        <div class="metrics">
-          <div><b id="d-tds">–</b><span>Salt mg/L</span></div>
-          <div><b id="d-germ">–</b><span>Germ risk</span></div>
-          <div><b id="d-people">–</b><span>People</span></div>
-        </div>
-        <div class="chartbox"><canvas id="h-chart" aria-label="Salt trend"></canvas></div>
-        <ul id="d-advice" class="advice"></ul>
-        <div id="d-alt" class="alt" hidden></div>
-        <div id="d-station" class="station" hidden>
-          <span class="hint">Station lights stay on until someone who checked the water resets them.</span>
-          <input type="text" id="d-by" placeholder="Your name" maxlength="40" aria-label="Your name">
-          <label><input type="checkbox" id="d-checked"> I checked the water</label>
-        </div>
-        <div class="controls">
-          <span class="lbl">Set light</span>
-          <button class="sw none" data-level="none" title="Blue: no anomaly measured" aria-label="Set blue"></button>
-          <button class="sw yellow" data-level="yellow" title="Yellow: watch" aria-label="Set yellow"></button>
-          <button class="sw red" data-level="red" title="Red: warning" aria-label="Set red"></button>
-          <button id="d-reset" class="reset" title="Back to measured values">Reset</button>
-        </div>
-        <div id="d-msg" class="msg" role="status"></div>
-      </section>
-
-      <section class="card">
-        <h2>Next 10 days · Lodwar</h2>
-        <div id="strip" class="strip"></div>
-        <div id="note" class="note"></div>
-      </section>
-    </aside>
-  </main>
+    <footer>
+      <span id="updated"></span>
+      <button class="link" id="reset-all">Reset all points</button>
+    </footer>
+  </aside>
 </div>
 
 <script>
-const COLORS = { none: '#2563eb', yellow: '#eab308', red: '#dc2626' };
-const STATUS = { none: 'No anomaly measured', yellow: 'Watch', red: 'Warning' };
+const COLOR = { red: '#d1242f', yellow: '#e3b008', none: '#ffffff' };
+const STATUS = { red: 'Warning', yellow: 'Watch', none: 'No anomaly measured' };
 const RANK = { red: 2, yellow: 1, none: 0 };
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const n = v => v.toLocaleString('en');
+const ago = h => h == null ? 'never' : h <= 0.2 ? 'just now' : h < 1 ? `${Math.round(h * 60)} min ago` : `${h} h ago`;
 
-let source, selLayer, data = null, selectedId = null, chart = null;
+let data = null, selectedId = null, source = null, selLayer = null, chart = null;
 
 const map = new atlas.Map('map', {
   center: [35.62, 3.14], zoom: 9.4, style: 'satellite_road_labels',
@@ -228,248 +171,212 @@ map.events.add('ready', () => {
   source = new atlas.source.DataSource();
   map.sources.add(source);
   const isPoint = ['==', ['geometry-type'], 'Point'];
-  // line to the nearest alternative water point
   map.layers.add(new atlas.layer.LineLayer(source, null, {
-    strokeColor: '#ffffff', strokeWidth: 3, strokeDashArray: [2, 2], filter: ['==', ['geometry-type'], 'LineString']
+    strokeColor: '#ffffff', strokeWidth: 2.5, strokeDashArray: [2, 2], filter: ['==', ['geometry-type'], 'LineString']
   }));
-  // outlook ring: getting worse soon
-  map.layers.add(new atlas.layer.BubbleLayer(source, null, {
-    color: 'rgba(0,0,0,0)', radius: 18, strokeWidth: 4, strokeColor: '#f97316',
+  map.layers.add(new atlas.layer.BubbleLayer(source, null, {   // likely to get worse (forecast)
+    color: 'rgba(0,0,0,0)', radius: 17, strokeWidth: 3, strokeColor: '#e3b008',
     filter: ['all', isPoint, ['==', ['get', 'outlook_level'], 'red']]
   }));
-  // selected point
   selLayer = new atlas.layer.BubbleLayer(source, null, {
-    color: 'rgba(255,255,255,0.25)', radius: 24, strokeWidth: 2, strokeColor: '#ffffff',
+    color: 'rgba(255,255,255,0.3)', radius: 23, strokeWidth: 2, strokeColor: '#ffffff',
     filter: ['all', isPoint, ['==', ['get', 'id'], '']]
   });
   map.layers.add(selLayer);
-  const bubbles = new atlas.layer.BubbleLayer(source, null, {
-    color: ['get', 'color'], radius: ['get', 'radius'], strokeColor: '#ffffff', strokeWidth: 2, filter: isPoint
+  const dots = new atlas.layer.BubbleLayer(source, null, {
+    color: ['get', 'color'], radius: ['get', 'radius'], strokeColor: ['get', 'stroke'], strokeWidth: 2,
+    opacity: ['get', 'opacity'], strokeOpacity: ['get', 'opacity'], filter: isPoint
   });
-  map.layers.add(bubbles);
+  map.layers.add(dots);
   map.layers.add(new atlas.layer.SymbolLayer(source, null, {
     iconOptions: { image: 'none' },
-    textOptions: { textField: ['get', 'label'], offset: [0, 1.9], color: '#ffffff', haloColor: '#000000',
-                   haloWidth: 1.5, size: 13, font: ['SegoeUi-Bold'] },
+    textOptions: { textField: ['get', 'label'], offset: [0, 1.8], color: '#ffffff', haloColor: '#000000', haloWidth: 1.5, size: 13 },
     filter: isPoint
   }));
-  map.events.add('click', bubbles, e => select(e.shapes[0].getProperties().id));
+  map.events.add('click', dots, e => select(e.shapes[0].getProperties().id));
   refresh();
   setInterval(refresh, 3000);
 });
 
-// ---------------------------------------------------------------- data --
 async function refresh() {
   try { data = await (await fetch('/api/state')).json(); } catch (e) { return; }
-  render();
-}
-
-function colorOf(p) { return (p.no_data && !p.manual) ? '#94a3b8' : COLORS[p.level]; }
-
-function render() {
-  if (source) {
-    const feats = [];
-    data.points.forEach(p => {
-      feats.push(new atlas.data.Feature(new atlas.data.Point([p.lon, p.lat]), {
-        id: p.id, outlook_level: p.outlook_level, color: colorOf(p),
-        radius: p.level === 'red' ? 13 : (p.live ? 11 : 9), label: p.live ? `${p.id} · LIVE` : p.id
-      }));
-      if (p.alternative) {
-        feats.push(new atlas.data.Feature(new atlas.data.LineString([[p.lon, p.lat], [p.alternative.lon, p.alternative.lat]]), {}));
-      }
-    });
-    source.setShapes(feats);
-  }
   if (!selectedId) selectedId = (data.points.find(p => p.live) || data.points[0]).id;
-  renderKpis();
-  renderAttention();
-  renderDetail();
-  renderStrip();
+  drawMap();
+  drawSummary();
+  drawList();
+  drawDetail();
 }
 
-function renderKpis() {
+function drawMap() {
+  if (!source) return;
+  const feats = [];
+  data.points.forEach(p => {
+    const nodata = p.no_data && !p.manual;
+    feats.push(new atlas.data.Feature(new atlas.data.Point([p.lon, p.lat]), {
+      id: p.id, outlook_level: p.outlook_level,
+      color: nodata ? '#9aa3aa' : COLOR[p.level],
+      stroke: p.level === 'none' || nodata ? '#1d2327' : '#ffffff',
+      opacity: nodata ? 0.6 : 1,
+      radius: p.level === 'red' ? 12 : p.level === 'yellow' ? 10 : 7,
+      label: p.live ? `${p.id} live` : p.id
+    }));
+    if (p.alternative) {
+      feats.push(new atlas.data.Feature(new atlas.data.LineString([[p.lon, p.lat], [p.alternative.lon, p.alternative.lat]]), {}));
+    }
+  });
+  source.setShapes(feats);
+  selLayer.setOptions({ filter: ['all', ['==', ['geometry-type'], 'Point'], ['==', ['get', 'id'], selectedId]] });
+}
+
+function drawSummary() {
   const red = data.points.filter(p => p.level === 'red');
   const yellow = data.points.filter(p => p.level === 'yellow');
-  $('k-red').textContent = red.length;
-  $('k-yellow').textContent = yellow.length;
-  $('k-people').textContent = [...red, ...yellow].reduce((s, p) => s + p.people, 0).toLocaleString('en');
+  let text;
+  if (!red.length && !yellow.length) text = `No anomaly measured at the ${data.points.length} water points.`;
+  else {
+    const parts = [];
+    if (red.length) parts.push(`${red.length} water point${red.length > 1 ? 's' : ''} need${red.length > 1 ? '' : 's'} action`);
+    if (yellow.length) parts.push(`${yellow.length} to watch`);
+    text = parts.join(', ') + '.';
+  }
+  $('headline').textContent = text;
+
   const live = data.points.find(p => p.live);
+  const st = $('station');
   if (live) {
-    const online = !live.no_data && live.data_age_h != null && live.data_age_h <= 0.2;
-    $('k-live').textContent = live.no_data ? 'offline' : `${live.tds} mg/L`;
-    $('k-live-l').textContent = `Live station ${live.id} · ${online ? 'online' : (live.no_data ? 'no data' : live.data_age_h + ' h ago')}`;
-    $('k-live-box').classList.toggle('off', !online);
+    const fresh = !live.no_data && live.data_age_h != null && live.data_age_h <= 0.2;
+    st.textContent = live.no_data ? `Station ${live.id} has not sent any data yet.`
+      : fresh ? `Station ${live.id} is live: ${live.tds} mg/L salt.`
+      : `Station ${live.id} last sent data ${ago(live.data_age_h)}.`;
+    st.className = 'station' + (fresh ? '' : ' off');
   }
   $('updated').textContent = 'Updated ' + new Date(data.generated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-function renderAttention() {
+function drawList() {
   const list = data.points
     .filter(p => p.level !== 'none' || p.outlook_level === 'red')
     .sort((a, b) => RANK[b.level] - RANK[a.level] || b.people - a.people);
-  const box = $('attention');
-  if (!list.length) {
-    box.replaceChildren(el('div', 'calm', `No anomaly measured at any of the ${data.points.length} points.`));
-  } else {
-    box.replaceChildren(...list.map(p => {
-      const row = el('div', 'item' + (p.id === selectedId ? ' sel' : ''));
-      const dot = el('span', 'dot');
-      if (p.level === 'none') { dot.className = 'ring'; } else { dot.style.background = COLORS[p.level]; }
-      const mid = el('div');
-      mid.append(el('b', null, `${p.id} ${p.name}`));
-      const why = p.level === 'none' ? (p.outlook[0] || {}).title : p.reasons[0];
-      mid.append(el('small', null, why || STATUS[p.level]));
-      row.append(dot, mid, el('span', 'ppl', `${p.people.toLocaleString('en')} people`));
-      row.addEventListener('click', () => select(p.id));
-      return row;
-    }));
+  const box = $('list');
+  if (!list.length) box.replaceChildren(el('p', 'empty', 'Nothing needs attention right now.'));
+  else box.replaceChildren(...list.map(p => {
+    const row = el('button', 'row' + (p.id === selectedId ? ' sel' : ''));
+    row.type = 'button';
+    const mid = el('span');
+    mid.append(el('b', null, `${p.id} ${p.name}`),
+               el('span', 'why', p.level === 'none' ? (p.outlook[0] || {}).title || 'Likely to get worse' : p.reasons[0] || STATUS[p.level]));
+    row.append(el('span', 'mark ' + (p.level === 'none' ? 'ring' : p.level)), mid, el('span', 'ppl', `${n(p.people)} people`));
+    row.addEventListener('click', () => select(p.id));
+    return row;
+  }));
+  $('next').replaceChildren();
+  if (data.priorities.length) {
+    $('next').append('Test next: ', el('b', null, data.priorities.map(t => `${t.id} ${t.name}`).join(', ')));
   }
-  $('testtoday').textContent = data.priorities.length
-    ? 'Test today: ' + data.priorities.map(t => `${t.id} ${t.name}`).join(' · ') : '';
 }
 
-function renderDetail() {
+function drawDetail() {
   const p = data.points.find(x => x.id === selectedId);
   if (!p) return;
-  if (selLayer) selLayer.setOptions({ filter: ['all', ['==', ['geometry-type'], 'Point'], ['==', ['get', 'id'], p.id]] });
+  const nodata = p.no_data && !p.manual;
   const name = $('d-name');
   name.textContent = `${p.id} ${p.name}`;
-  if (p.live) name.append(el('span', 'badge', 'LIVE'));
-  $('d-sub').textContent = p.source_type.replace('_', ' ') +
-    (p.data_age_h != null ? ` · data ${p.data_age_h <= 0.2 ? 'just now' : p.data_age_h + ' h ago'}` : ' · no data yet');
+  if (p.live) name.append(el('span', 'live', 'LIVE'));
   const st = $('d-status');
-  const nodata = p.no_data && !p.manual;
-  st.className = 'status ' + (nodata ? 'nodata' : p.level);
-  st.textContent = nodata ? 'No data' : STATUS[p.level] + (p.manual ? ' · manual' : '');
+  st.className = 'status ' + (nodata ? 'none' : p.level);
+  st.textContent = nodata ? 'No data' : STATUS[p.level] + (p.manual ? ' (set by hand)' : '');
+  $('d-sub').textContent = `${p.source_type.replace('_', ' ')}, last data ${ago(p.data_age_h)}`;
   const tds = $('d-tds');
-  tds.textContent = p.tds != null ? Math.round(p.tds) + (p.salt_trend === 'rising' ? ' ▲' : '') : '–';
-  tds.className = p.salt_trend === 'rising' ? 'up' : '';
-  $('d-germ').textContent = p.no_data ? '–' : Math.round(p.p_germs * 100) + ' %';
-  $('d-people').textContent = p.people.toLocaleString('en');
-  $('d-advice').replaceChildren(...p.advice.slice(0, 3).map(t => el('li', null, t)));
+  tds.textContent = p.tds != null ? n(Math.round(p.tds)) + (p.salt_trend === 'rising' ? ' ↑' : '') : '–';
+  tds.className = p.salt_trend === 'rising' ? 'rising' : '';
+  $('d-germ').textContent = p.no_data ? '–' : `${Math.round(p.p_germs * 100)} %`;
+  $('d-people').textContent = n(p.people);
+  $('d-advice').replaceChildren(...p.advice.filter(t => !p.manual || !t.startsWith('No alternative')).slice(0, 3).map(t => el('li', null, t)));
   const alt = $('d-alt');
   alt.hidden = !p.alternative;
-  if (p.alternative) alt.textContent = `Nearest alternative: ${p.alternative.id} ${p.alternative.name} · ${p.alternative.km} km`;
-  $('demo-pt').textContent = p.id;
-  $('d-station').hidden = !p.live;
-  loadHistory(p.id);
+  if (p.alternative) alt.textContent = `Nearest other water point: ${p.alternative.id} ${p.alternative.name}, ${p.alternative.km} km.`;
+  $('d-confirm').hidden = !p.live;
+  loadChart(p.id);
 }
 
-function renderStrip() {
-  const fc = ((data.weather && data.weather.forecast) || []).slice(0, 10);
-  const maxRain = Math.max(20, ...fc.map(d => d.rain_mm || 0));
-  $('strip').replaceChildren(...fc.map(d => {
-    const day = el('div', 'day' + ((d.tmax || 0) >= 36 ? ' hot' : ''));
-    const bar = el('div', 'bar'); bar.style.height = `${Math.round(40 * (d.rain_mm || 0) / maxRain)}px`;
-    day.append(el('span', null, new Date(d.date + 'T12:00:00').toLocaleDateString('en', { weekday: 'short' })),
-               bar, el('span', 'mm', `${Math.round(d.rain_mm || 0)}mm`),
-               el('span', 't', d.tmax != null ? `${Math.round(d.tmax)}°` : '–'));
-    return day;
-  }));
-  const w = data.weather || {};
-  const worse = data.points.filter(p => p.outlook_level === 'red').length;
-  const demo = w.source && w.source.startsWith('demo');
-  $('note').textContent = !fc.length ? 'No forecast yet.' :
-    `${worse ? worse + ' point' + (worse > 1 ? 's' : '') + ' getting worse soon' : 'Nothing expected to get worse'} · ` +
-    `${w.dry_days ?? '–'} dry days · ${demo ? 'demo scenario' : 'Azure Maps Weather'}`;
-}
-
-// ---------------------------------------------------------- salt chart --
-let historyBusy = false;
-async function loadHistory(id) {
-  if (historyBusy || typeof Chart === 'undefined') return;
-  historyBusy = true;
-  let h;
-  try { h = await (await fetch(`/api/history?id=${id}&n=150`)).json(); } catch (e) { h = null; }
-  historyBusy = false;
+let chartBusy = false;
+async function loadChart(id) {
+  if (chartBusy || typeof Chart === 'undefined') return;
+  chartBusy = true;
+  let h = null;
+  try { h = await (await fetch(`/api/history?id=${id}&n=150`)).json(); } catch (e) {}
+  chartBusy = false;
   if (!h || id !== selectedId) return;
   const pts = h.points || [];
   const labels = pts.map(p => new Date(p.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   const tds = pts.map(p => p.tds);
-  const human = (h.limits && h.limits.human) || 1000;
-  const maxV = Math.max(...tds, human) * 1.15;
+  const limit = (h.limits && h.limits.human) || 1000;
   const datasets = [
-    { label: 'Salt (mg/L)', data: tds, borderColor: '#0284c7', backgroundColor: 'rgba(2,132,199,0.12)',
-      fill: true, pointRadius: 0, tension: 0.25, borderWidth: 2 },
-    { label: `Drinking limit ${human}`, data: tds.map(() => human), borderColor: '#dc2626',
-      borderDash: [6, 4], pointRadius: 0, borderWidth: 1.5, fill: false }
+    { label: 'Salt', data: tds, borderColor: '#1d2327', pointRadius: 0, tension: 0.2, borderWidth: 2, fill: false },
+    { label: `Drinking limit (${limit})`, data: tds.map(() => limit), borderColor: '#d1242f', borderDash: [5, 4], pointRadius: 0, borderWidth: 1.5, fill: false }
   ];
+  const max = Math.max(...tds, limit) * 1.15;
   if (!chart) {
-    chart = new Chart($('h-chart'), {
+    chart = new Chart($('chart'), {
       type: 'line', data: { labels, datasets },
       options: {
         animation: false, responsive: true, maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         scales: {
-          x: { ticks: { color: '#64748b', maxTicksLimit: 4, maxRotation: 0 }, grid: { display: false } },
-          y: { min: 0, suggestedMax: maxV, ticks: { color: '#64748b', maxTicksLimit: 5 }, grid: { color: '#e2e8f0' } }
+          x: { ticks: { color: '#5b6670', maxTicksLimit: 4, maxRotation: 0 }, grid: { display: false } },
+          y: { min: 0, suggestedMax: max, ticks: { color: '#5b6670', maxTicksLimit: 4 }, grid: { color: '#eceff1' } }
         },
-        plugins: { legend: { labels: { color: '#0f172a', boxWidth: 12, font: { size: 11 } } } }
+        plugins: { legend: { align: 'start', labels: { color: '#1d2327', boxWidth: 14, boxHeight: 1, font: { size: 12 } } } }
       }
     });
   } else {
     chart.data.labels = labels; chart.data.datasets = datasets;
-    chart.options.scales.y.suggestedMax = maxV;
+    chart.options.scales.y.suggestedMax = max;
     chart.update();
   }
 }
 
-// ------------------------------------------------------------- actions --
-function select(id) { if (id !== selectedId) $('d-msg').textContent = ''; selectedId = id; if (data) { renderAttention(); renderDetail(); } }
+function select(id) {
+  if (id !== selectedId) $('d-msg').textContent = '';
+  selectedId = id;
+  if (data) { drawMap(); drawList(); drawDetail(); }
+}
 
 document.querySelectorAll('[data-level]').forEach(b => b.addEventListener('click', async () => {
-  await post('/api/override', { point_id: selectedId, level: b.dataset.level }); refresh();
+  await post('/api/override', { point_id: selectedId, level: b.dataset.level });
+  $('d-msg').textContent = `${selectedId} marked as ${STATUS[b.dataset.level].toLowerCase()}. No SMS is sent for this.`;
+  refresh();
 }));
+
 try { $('d-by').value = localStorage.getItem('wendy-by') || ''; } catch (e) {}
 $('d-reset').addEventListener('click', async () => {
   const p = data && data.points.find(x => x.id === selectedId);
   const msg = $('d-msg');
-  if (p && p.live) {   // real station: switch its lights off (human in the loop)
-    const by = $('d-by').value.trim();
-    if (!by || !$('d-checked').checked) { msg.textContent = 'Enter your name and tick "I checked the water" first.'; return; }
-    try { localStorage.setItem('wendy-by', by); } catch (e) {}
-    msg.textContent = 'Sending…';
-    try {
+  if (!p) return;
+  const by = $('d-by').value.trim();
+  if (p.live && (!by || !$('d-checked').checked)) { msg.textContent = 'Enter your name and tick the box first.'; return; }
+  msg.textContent = 'Resetting…';
+  try {
+    // first the cloud (this may send the station a fresh verdict), then the station's lights
+    await post('/api/clear', { point_id: p.id });
+    if (p.live) {
+      try { localStorage.setItem('wendy-by', by); } catch (e) {}
       const res = await post('/api/reset', { point_id: p.id, by, checked: true });
       const body = await res.json();
-      if (!res.ok) { msg.textContent = body.error || 'Reset failed.'; return; }
-      msg.textContent = `Reset by ${body.by}. The lights at ${p.id} go off within seconds, or when the station is back online.`;
+      if (!res.ok) { msg.textContent = body.error || 'The station could not be reset. Try again.'; refresh(); return; }
       $('d-checked').checked = false;
-    } catch (e) { msg.textContent = 'Could not reach the server, try again.'; return; }
-  } else {
-    msg.textContent = `${selectedId} reset.`;
-  }
-  await post('/api/clear', { point_id: selectedId });
+      msg.textContent = `Reset by ${body.by}. The lights at ${p.id} go off within seconds and come back if the water is still salty or dirty.`;
+    } else {
+      msg.textContent = `${p.id} reset to the measured values.`;
+    }
+  } catch (e) { msg.textContent = 'No connection to the server. Try again.'; }
   refresh();
 });
-$('reset-all').addEventListener('click', async () => { await post('/api/clear', { point_id: 'all' }); $('d-msg').textContent = 'All points reset.'; refresh(); });
-document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', async () => {
-  await post('/api/simulate', { preset: b.dataset.preset }); refresh();
-}));
-document.querySelectorAll('[data-test]').forEach(b => b.addEventListener('click', async () => {
-  await post('/api/testresult', { point_id: selectedId, test: 'h2s', result: b.dataset.test }); refresh();
-}));
 
-const drawer = $('demo');
-$('demo-toggle').addEventListener('click', () => { drawer.hidden = !drawer.hidden; });
-document.addEventListener('keydown', e => {
-  if (e.key.toLowerCase() === 'd' && !e.ctrlKey && !e.metaKey && !e.target.closest('input, select, textarea')) drawer.hidden = !drawer.hidden;
-  if (e.key === 'Escape') drawer.hidden = true;
-});
-
-let cloudLayer = null;
-$('clouds').addEventListener('click', e => {
-  if (!cloudLayer) {
-    cloudLayer = new atlas.layer.TileLayer({
-      tileUrl: 'https://{azMapsDomain}/map/tile?api-version=2.0&tilesetId=microsoft.weather.infrared.main&zoom={z}&x={x}&y={y}&tileSize=256',
-      opacity: 0.55, tileSize: 256, maxSourceZoom: 15
-    }, 'clouds');
-    try { map.layers.add(cloudLayer, 'labels'); } catch (err) { map.layers.add(cloudLayer); }
-    e.target.textContent = 'Hide clouds';
-  } else {
-    map.layers.remove(cloudLayer); cloudLayer = null;
-    e.target.textContent = 'Clouds';
-  }
+$('reset-all').addEventListener('click', async () => {
+  await post('/api/clear', { point_id: 'all' });
+  $('d-msg').textContent = 'All points reset to the measured values.';
+  refresh();
 });
 </script>
 </body>
