@@ -480,7 +480,7 @@ def testalert(req: func.HttpRequest) -> func.HttpResponse:
 def _reset_point(tc, pid):
     """Back to a calm state: forget tests, manual colour, trend and alert memory."""
     st = _get(tc, "point", pid)
-    for k in ("last_test", "last_test_ts", "override", "high_salt_streak"):
+    for k in ("last_test", "last_test_ts", "override", "high_salt_streak", "turb_ntu"):
         st.pop(k, None)
     if "ec_us" in st:
         st["ec_slow"] = st["ec_slow_before"] = st["ec_us"]   # current value becomes the new normal

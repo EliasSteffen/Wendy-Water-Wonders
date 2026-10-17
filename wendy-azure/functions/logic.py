@@ -30,6 +30,9 @@ SOURCE_RISK = {"borehole": 0.0, "shallow_well": 0.7, "open_pan": 1.4}
 GERM_YELLOW = 0.30
 GERM_RED = 0.60
 
+# --- pH (measured at the real station; same range as the station LEDs) ---
+PH_OK = (6.5, 8.5)         # WHO operational range; outside -> watch (yellow)
+
 MAX_ALT_KM = 15            # do not send people further than this
 MAX_DATA_AGE_H = 7 * 24    # alternatives need data newer than this
 
@@ -89,8 +92,13 @@ def update_state(state, reading, point):
     turb = reading.get("turb_ntu")
     if turb is not None:
         st["turb_ntu"] = float(turb)
-    elif "turb_ntu" not in st:
+    elif "turb_ntu" in reading or "turb_ntu" not in st:
+        # sensor explicitly switched off (null) or never sent: no turbidity signal
         st["turb_ntu"] = float(point["baseline_turb"])
+    # latest raw values for the dashboard (None = sensor off / not calibrated)
+    for key, dst in (("turb_ntu", "turb_last"), ("ph", "ph")):
+        if key in reading:
+            st[dst] = None if reading[key] is None else float(reading[key])
     if reading.get("temp_c") is not None:
         st["temp_c"] = float(reading["temp_c"])
     st["visits_total"] = int(st.get("visits_total", 0)) + int(reading.get("visits") or 0)
@@ -109,6 +117,8 @@ def assess(point, st, weather, now=None):
         "level": "none", "salt": "none", "germs": "none", "p_germs": 0.0,
         "tds": None, "use": "unknown", "reasons": [], "advice": [],
         "data_age_h": None, "no_data": False, "salt_trend": "unknown",
+        "turb": st.get("turb_last"), "ph": st.get("ph"),
+        "has_turb": "turb_last" in st, "has_ph": "ph" in st,
     }
     if "ec_us" not in st:
         out["no_data"] = True
@@ -197,7 +207,15 @@ def assess(point, st, weather, now=None):
     elif out["germs"] == "yellow":
         out["advice"].append("Test recommended at next visit.")
 
-    out["level"] = worse(out["salt"], out["germs"])
+    # ---- pH ------------------------------------------------------------------
+    ph_flag = "none"
+    ph = st.get("ph")
+    if ph is not None and not PH_OK[0] <= ph <= PH_OK[1]:
+        ph_flag = "yellow"
+        out["reasons"].append(f"pH {ph:.1f} outside {PH_OK[0]}-{PH_OK[1]}")
+        out["advice"].append("pH unusual: test the water at the next visit.")
+
+    out["level"] = worse(worse(out["salt"], out["germs"]), ph_flag)
     return out
 
 
