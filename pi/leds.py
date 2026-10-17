@@ -15,8 +15,9 @@ Two sources can raise the warning:
   local  the latest measurement on the Pi, so the LEDs also work offline
          (salt limits as in wendy-azure/functions/logic.py, pH outside 6.5-8.5, turbid water)
   cloud  the cloud's verdict from the device twin (desired.json). Only the cloud knows the
-         germ risk (rain, lab tests, type of water source). A verdict that was already there
-         at the last reset doesn't count again; only a new one does.
+         germ risk (rain, lab tests, type of water source). The cloud raises the warning only
+         when its verdict gets worse (none -> yellow -> red), so a verdict a person has reset
+         doesn't switch the lights on again by itself.
 
 Wiring (BCM numbers; GPIO -> resistor -> LED long leg, short leg -> GND):
   white   GPIO17 (pin 11)  100 ohm   white LEDs need ~3 V; with 330 ohm they stay almost dark
@@ -44,7 +45,7 @@ PINS = (17, 27, 22)            # white, yellow, red
 TDS_YELLOW = 800               # ppm: getting salty
 TDS_RED = 1000                 # ppm: too salty for people
 PH_OK = (6.5, 8.5)             # WHO range for drinking water
-TURBIDITY_YELLOW_NTU = 50      # the sensor can't resolve small values: 50 NTU ≈ 4.19 V at the sensor
+TURBIDITY_YELLOW_NTU = 500     # rough sensor: 500 NTU ≈ 8 % darker than the calibration water
 
 
 def local_level(m):
@@ -121,8 +122,8 @@ class StatusLeds:
         factory = header_pin_factory()
         self.white, self.yellow, self.red = (LED(p, pin_factory=factory) for p in pins)
         self.log, self.state_file, self._lock = log, state_file, threading.Lock()
-        self._twin_updated = None           # `updated` of the newest cloud verdict seen
-        self._state = {"level": "none", "reason": "", "since": None, "cloud_ack": None, "reset_ack": None}
+        # cloud_seen: the cloud's last verdict level, so only a worse one raises the warning
+        self._state = {"level": "none", "reason": "", "since": None, "cloud_seen": "none", "reset_ack": None}
         try:
             with open(state_file, encoding="utf-8") as f:
                 self._state.update(json.load(f))
@@ -140,22 +141,26 @@ class StatusLeds:
 
     def update_cloud(self, twin):
         """Called with the whole device twin after every change. A new `reset_water` from the
-        dashboard clears the warning; a new cloud verdict can raise it."""
+        dashboard clears the warning; a cloud verdict raises it only when it got worse.
+        (The cloud re-sends the same verdict with a new timestamp, e.g. while it still
+        remembers an old salty reading; that must not undo a person's reset.)"""
         reset = twin.get("reset_water") or {}
+        level, reason = cloud_level(twin)
         with self._lock:
-            self._twin_updated = twin.get("updated")
             if reset.get("id") and reset["id"] != self._state["reset_ack"]:
-                self._reset(reset)
-            if self._twin_updated and self._twin_updated == self._state["cloud_ack"]:
-                return                      # this verdict was already there at the last reset
-            self._raise(*cloud_level(twin))
+                self._reset(reset)          # the person saw the cloud's current verdict
+            elif LEVELS.index(level) > LEVELS.index(self._state["cloud_seen"]):
+                self._raise(level, reason)
+            if level != self._state["cloud_seen"]:
+                self._state["cloud_seen"] = level
+                self._save()
 
     def _reset(self, reset):
-        """Switch yellow/red off. The cloud verdict at this moment is acknowledged, so it doesn't
-        switch the warning on again; new measurements and new cloud verdicts still do."""
+        """Switch yellow/red off. New bad measurements and a cloud verdict that gets worse
+        switch the warning on again."""
         who = f"{reset.get('by') or 'someone'} in the dashboard"
         self._state = {"level": "none", "reason": f"reset by {who}", "since": _now(),
-                       "cloud_ack": self._twin_updated, "reset_ack": reset["id"]}
+                       "cloud_seen": self._state["cloud_seen"], "reset_ack": reset["id"]}
         self._save()
         self._show()
         self.log(f"LED warning cleared by {who}")
