@@ -4,7 +4,7 @@
 Sends one batched message for all simulated points every few seconds.
 Type commands while it runs to trigger demo events:
 
-    salt wp03     conductivity climbs step by step (salinity rising)
+    salt wp03     conductivity climbs step by step (salinity rising); "well03" works too
     dirt wp11     turbidity jumps (dirty water)
     clear wp03    back to normal
     clear all     everything back to normal
@@ -43,7 +43,7 @@ def commands():
         if len(cmd) != 2:
             print("commands: salt <id> | dirt <id> | clear <id> | clear all")
             continue
-        action, pid = cmd
+        action, pid = cmd[0], cmd[1].replace("well", "wp", 1)   # "salt well03" works too
         targets = list(events) if pid == "all" else [pid]
         for t in targets:
             if t not in events:
