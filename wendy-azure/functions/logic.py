@@ -8,6 +8,7 @@ Agree real values with WHH before using this anywhere outside a demo.
 """
 import json
 import math
+import re
 import os
 from datetime import datetime, timezone
 
@@ -20,8 +21,8 @@ LEVELS = ["none", "yellow", "red"]
 
 # --- Salt (measured directly via conductivity) ---------------------------
 EC_TO_TDS = 0.5            # TDS [mg/L] ~ 0.5-0.7 x EC [uS/cm]; 0.5 matches the Pi (DFRobot method)
-TDS_YELLOW = 800           # getting salty / watch
-TDS_HUMAN_LIMIT = 1000     # above: people should avoid it
+TDS_YELLOW = 700           # getting salty / watch
+TDS_HUMAN_LIMIT = 800      # above: people should avoid it (placeholder, agree with WHH)
 TDS_LIVESTOCK_LIMIT = 5000 # above: not even for livestock
 SALT_RISING_RATIO = 1.15   # EC 15 % above its slow average -> "rising"
 
@@ -317,7 +318,7 @@ def message_for(a):
 
 def sms_salt(a, alt=None):
     """SMS for the high-salt rule (the only automatic SMS). Short, plain GSM characters."""
-    s = f"WATER ALERT {a['id']}: salt very high ({a['tds']} mg/L). Do not drink, do not boil."
+    s = f"WATER ALERT {a['id']}: salt very high. Do not drink, do not boil."
     if a.get("use") == "livestock_only":
         s += " Livestock ok."
     alt = alt or a.get("alternative")
@@ -329,6 +330,7 @@ def sms_salt(a, alt=None):
 def sms_for(a):
     """Short SMS (fits one segment even with the Twilio trial prefix). Plain GSM characters only."""
     first = a["reasons"][0] if a["reasons"] else "check the water"
+    first = re.sub(r"\s*\(~?\d+ mg/L\)", "", first)        # no exact salt value in SMS
     s = f"WATER ALERT {a['id']}: {first}."
     if a["salt"] == "red":
         s += " Livestock ok. Do not boil." if a["use"] == "livestock_only" else " Do not use."

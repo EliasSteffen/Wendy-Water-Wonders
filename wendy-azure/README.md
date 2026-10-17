@@ -167,9 +167,11 @@ az functionapp config appsettings set -n $FUNC -g $RG --settings "ACS_CONNECTION
 az functionapp config appsettings set -n $FUNC -g $RG --settings "TELEGRAM_TOKEN=..." "TELEGRAM_CHAT_ID=..." -o none
 ```
 
-Benachrichtigt wird **nur, wenn eine Stelle schlechter wird**, damit es keine Flut gibt. **Automatische SMS gibt es nur bei sehr hohem Salz:** Salz ≥ `SMS_SALT_MIN_TDS` (Standard 1000 mg/L) in `SMS_SALT_CONFIRM` Messungen hintereinander (Standard 2), und nur für die Stellen in `SMS_POINTS` (Standard: die echte Station `wp07`, `all` = alle). Pro Ereignis eine SMS; erst wenn das Salz wieder fällt, kann die nächste kommen. Keime, Regen, Ausblick und Sammelmeldungen gehen nur per E-Mail/Telegram. Zum Schutz des Testguthabens gilt ein Tageslimit: `SMS_MAX_PER_DAY` (Standard 20) als App Setting ändern. Im echten Betrieb in Kenia wäre Africa's Talking statt Twilio sinnvoll; dafür muss nur `_send_sms` getauscht werden.
+Benachrichtigt wird **nur, wenn eine Stelle schlechter wird**, damit es keine Flut gibt. **Automatische SMS gibt es nur bei sehr hohem Salz:** Salz ≥ `SMS_SALT_MIN_TDS` (Standard 800 mg/L) in `SMS_SALT_CONFIRM` Messungen hintereinander (Standard 2), und nur für die Stellen in `SMS_POINTS` (Standard: die echte Station `wp07`, `all` = alle). Pro Ereignis eine SMS; erst wenn das Salz wieder fällt, kann die nächste kommen. Keime, Regen, Ausblick und Sammelmeldungen gehen nur per E-Mail/Telegram. Zum Schutz des Testguthabens gilt ein Tageslimit: `SMS_MAX_PER_DAY` (Standard 20) als App Setting ändern. Im echten Betrieb in Kenia wäre Africa's Talking statt Twilio sinnvoll; dafür muss nur `_send_sms` getauscht werden.
 
 ## 6. Demo-Ablauf
+
+**Namen:** Auf dem Dashboard, in SMS, E-Mail und Telegram heißen die Stellen `well01` … `well14`. Intern bleiben die IDs `wp01` … `wp14` (IoT-Hub-Gerät `wp07`, `POINT_ID=wp07` auf dem Pi, `REAL_DEVICE_IDS=wp07`), daran muss nichts geändert werden. Der Simulator versteht beide Schreibweisen (`salt well03` oder `salt wp03`). Die SMS nennt keinen genauen Salzwert mehr. Eine weiße gestrichelte Linie gibt es nur noch von einem roten Punkt zur vorgeschlagenen Ausweichstelle.
 
 Auf der Karte sind Stellen weiß („no anomaly measured“, nie „sicher“) oder gelb (Watch). Rot wird nur die LIVE-Station (wp07); simulierte Stellen werden höchstens gelb. Ein gelber Punkt mit rotem Rand heißt „wird schnell schlimmer“: Salz steigt schnell oder die Vorhersage ist schlecht, aber der Grenzwert ist noch nicht erreicht. Als Ausweichstelle wird nur eine weiße oder gelbe Stelle vorgeschlagen, weiß bevorzugt; sie steht als Text in der Spalte, Linien auf der Karte gibt es nicht mehr. Ein Klick auf Salz, Trübung, pH oder Regen schaltet die Grafik darunter um. Regen zeigt Tageswerte für die Region (Lodwar): die letzten 14 Tage (Open-Meteo) und die nächsten 10 Tage (Azure Maps Weather); die vergangenen Tage erscheinen nach dem nächsten Wetter-Update, das alle 30 Minuten und beim Start der Function läuft. Die rechte Spalte hat eine feste Größe: oben Warnungen, Watch und betroffene Menschen, dann der Status der LIVE-Station, darunter die angeklickte Stelle (Karte anklicken) mit den Sensoren Salz (TDS), Trübung und pH, der Salzkurve und den Hinweisen. Das Keimrisiko steht nur klein als Schätzung da, weil es nicht gemessen wird. Ein pH außerhalb von 6,5 bis 8,5 macht eine Stelle gelb, wie an den Lampen der Station.
 
@@ -199,7 +201,7 @@ Die Optik: Auf der Karte zeigt ein **Ring** um eine Stelle „wird bald schlecht
 
 ## 7. Was Platzhalter ist (im Pitch offen sagen)
 
-- **Grenzwerte und Gewichte** in `logic.py` (Salz 800/1000/5000 mg/L, Gewichte der Keim-Formel). Mit WHH abstimmen.
+- **Grenzwerte und Gewichte** in `logic.py` (Salz 700/800/5000 mg/L, Gewichte der Keim-Formel). Mit WHH abstimmen.
 - **Koordinaten** in `points.json`: grob bei Lodwar. Wenn möglich durch echte ersetzen.
 - **Umrechnung** Leitfähigkeit → Salz: Faktor 0,5 wie auf dem Pi (üblich sind 0,5–0,7).
 - **13 von 14 Stellen** sind simuliert.

@@ -158,6 +158,7 @@
 const COLOR = { red: '#d1242f', yellow: '#e3b008', none: '#ffffff' };
 const STATUS = { red: 'Warning', yellow: 'Watch', none: 'No anomaly measured' };
 const $ = id => document.getElementById(id);
+const lbl = id => String(id).replace(/^wp/, 'well');   // shown name: wp05 -> well05
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const n = v => v.toLocaleString('en');
@@ -174,6 +175,9 @@ map.events.add('ready', () => {
   source = new atlas.source.DataSource();
   map.sources.add(source);
   const isPoint = ['==', ['geometry-type'], 'Point'];
+  map.layers.add(new atlas.layer.LineLayer(source, null, {   // red point -> suggested water point
+    strokeColor: '#ffffff', strokeWidth: 2.5, strokeDashArray: [2, 2], filter: ['==', ['geometry-type'], 'LineString']
+  }));
   selLayer = new atlas.layer.BubbleLayer(source, null, {
     color: 'rgba(255,255,255,0.3)', radius: 23, strokeWidth: 2, strokeColor: '#ffffff',
     filter: ['all', isPoint, ['==', ['get', 'id'], '']]
@@ -214,9 +218,11 @@ function drawMap() {
       strokeWidth: p.worsening ? 4 : 2,
       opacity: nodata ? 0.6 : 1,
       radius: p.level === 'red' ? 12 : p.level === 'yellow' ? 10 : 7,
-      label: p.live ? `${p.id} live` : p.id
+      label: p.live ? `${lbl(p.id)} live` : lbl(p.id)
     }));
   });
+  data.points.filter(p => p.level === 'red' && p.alternative).forEach(p => feats.push(
+    new atlas.data.Feature(new atlas.data.LineString([[p.lon, p.lat], [p.alternative.lon, p.alternative.lat]]), {})));
   source.setShapes(feats);
   selLayer.setOptions({ filter: ['all', ['==', ['geometry-type'], 'Point'], ['==', ['get', 'id'], selectedId]] });
 }
@@ -231,9 +237,9 @@ function drawSummary() {
   const st = $('station');
   if (live) {
     const fresh = !live.no_data && live.data_age_h != null && live.data_age_h <= 0.2;
-    st.textContent = live.no_data ? `Station ${live.id} has not sent data yet.`
-      : fresh ? `Station ${live.id} is live.`
-      : `Station ${live.id} last sent data ${ago(live.data_age_h)}.`;
+    st.textContent = live.no_data ? `Station ${lbl(live.id)} has not sent data yet.`
+      : fresh ? `Station ${lbl(live.id)} is live.`
+      : `Station ${lbl(live.id)} last sent data ${ago(live.data_age_h)}.`;
     st.className = 'station' + (fresh ? '' : ' off');
   }
   $('updated').textContent = 'Updated ' + new Date(data.generated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -253,7 +259,7 @@ function drawDetail() {
   if (!p) return;
   const nodata = p.no_data && !p.manual;
   const name = $('d-name');
-  name.textContent = `${p.id} ${p.name}`;
+  name.textContent = `${lbl(p.id)} ${p.name}`;
   if (p.live) name.append(el('span', 'live', 'LIVE'));
   const st = $('d-status');
   st.className = 'status ' + (nodata ? 'none' : p.level);
@@ -274,7 +280,7 @@ function drawDetail() {
 
   const advice = p.advice.filter(t => !p.manual || !t.startsWith('No alternative')).slice(0, 2);
   $('d-advice').replaceChildren(...advice.map(t => el('li', null, t)));
-  $('d-alt').textContent = p.alternative ? `Go to ${p.alternative.id} ${p.alternative.name} instead (${p.alternative.km} km)` : '';
+  $('d-alt').textContent = p.alternative ? `Go to ${lbl(p.alternative.id)} ${p.alternative.name} instead (${p.alternative.km} km)` : '';
   $('d-confirm').hidden = !p.live;
   $('d-red').hidden = !p.live;
   loadChart(p.id);
@@ -386,7 +392,7 @@ function select(id) {
 
 document.querySelectorAll('[data-level]').forEach(b => b.addEventListener('click', async () => {
   await post('/api/override', { point_id: selectedId, level: b.dataset.level });
-  $('d-msg').textContent = `${selectedId} set to ${b.dataset.level} by hand. No SMS is sent for this.`;
+  $('d-msg').textContent = `${lbl(selectedId)} set to ${b.dataset.level} by hand. No SMS is sent for this.`;
   refresh();
 }));
 
@@ -409,7 +415,7 @@ $('d-reset').addEventListener('click', async () => {
       $('d-checked').checked = false;
       msg.textContent = `Reset by ${body.by}. The station lights go off and come back if the water is still salty.`;
     } else {
-      msg.textContent = `${p.id} reset to the measured values.`;
+      msg.textContent = `${lbl(p.id)} reset to the measured values.`;
     }
   } catch (e) { msg.textContent = 'No connection to the server. Try again.'; }
   refresh();

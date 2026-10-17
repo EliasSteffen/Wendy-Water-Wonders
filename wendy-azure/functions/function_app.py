@@ -21,6 +21,7 @@ import html
 import json
 import logging
 import os
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -119,6 +120,11 @@ def _sms_budget_ok(n):
     return True
 
 
+def _wells(text):
+    """Names shown to people: wp05 -> well05 (IDs inside the system stay wp05)."""
+    return re.sub(r"\bwp(\d+)\b", r"well\1", text)
+
+
 def _send_sms_acs(text, numbers):
     """SMS via Azure Communication Services with an alphanumeric sender ID (e.g. "WendyWater").
     Germany only supports dynamic alphanumeric sender IDs, no phone numbers."""
@@ -142,6 +148,7 @@ def _send_sms_acs(text, numbers):
 def _send_sms(text):
     """Channel 1: SMS, only for urgent alerts.
     Uses Azure Communication Services if ACS_SMS_FROM is set, otherwise Twilio."""
+    text = _wells(text)
     to = os.environ.get("ALERT_SMS_TO")
     use_acs = bool(os.environ.get("ACS_SMS_FROM") and os.environ.get("ACS_CONNECTION_STRING"))
     sid, tok, frm = os.environ.get("TWILIO_SID"), os.environ.get("TWILIO_TOKEN"), os.environ.get("TWILIO_FROM")
@@ -170,6 +177,7 @@ def _send_sms(text):
 
 def _send_email(text):
     """Channel 2: e-mail via Azure Communication Services (Azure-native)."""
+    text = _wells(text)
     conn = os.environ.get("ACS_CONNECTION_STRING")
     sender, to = os.environ.get("ACS_EMAIL_SENDER"), os.environ.get("ALERT_EMAIL_TO")
     if not all((conn, sender, to)):
@@ -197,6 +205,7 @@ def _send_email(text):
 
 def _send_telegram(text):
     """Optional channel 3: Telegram bot."""
+    text = _wells(text)
     tok, chat = os.environ.get("TELEGRAM_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
     if not (tok and chat):
         return "not configured"
@@ -246,7 +255,7 @@ def _update_twin(device_id, desired):
 # SMS only when salt is really high, confirmed by several readings in a row, and
 # (by default) only for the real station. Everything else goes by e-mail/Telegram.
 def _sms_salt_min():
-    return float(os.environ.get("SMS_SALT_MIN_TDS", "1000"))      # ppm (mg/L)
+    return float(os.environ.get("SMS_SALT_MIN_TDS", "800"))      # ppm (mg/L)
 
 
 def _sms_confirm():

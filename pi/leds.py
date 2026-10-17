@@ -42,8 +42,8 @@ LEVELS = ["none", "yellow", "red"]
 PINS = (17, 27, 22)            # white, yellow, red
 
 # Local limits. Salt as in the cloud (wendy-azure/functions/logic.py); placeholders until WHH agrees
-TDS_YELLOW = 800               # ppm: getting salty
-TDS_RED = 1000                 # ppm: too salty for people
+TDS_YELLOW = 700               # ppm: getting salty
+TDS_RED = 800                  # ppm: too salty for people
 PH_OK = (6.5, 8.5)             # WHO range for drinking water
 TURBIDITY_YELLOW_NTU = 500     # rough sensor: 500 NTU ≈ 8 % darker than the calibration water
 
