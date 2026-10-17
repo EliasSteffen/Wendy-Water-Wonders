@@ -212,7 +212,7 @@ def best_alternative(bad, assessed, problem):
             continue
         if a["data_age_h"] is None or a["data_age_h"] > MAX_DATA_AGE_H:
             continue
-        if a[problem] != "none":
+        if a[problem] != "none" or (a.get("manual") and a["level"] != "none"):
             continue
         km = haversine_km(bad, a)
         if km > MAX_ALT_KM:
@@ -229,6 +229,8 @@ def add_alternatives(assessed):
     for a in assessed:
         a["alternative"] = None
         problem = "salt" if a["salt"] == "red" else ("germs" if a["germs"] == "red" else None)
+        if a.get("manual"):   # colour set by hand on the dashboard wins
+            problem = (problem or "salt") if a["level"] == "red" else None
         if problem:
             a["alternative"] = best_alternative(a, assessed, problem)
             if a["alternative"] is None:

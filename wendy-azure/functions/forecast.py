@@ -22,7 +22,7 @@ PREDICTORS = []
 RELIEF_RAIN_MM = 20     # rain over the horizon that may bring relief
 HEAVY_RAIN_MM = 10      # one day with this much rain = heavy
 HOT_C = 36              # max temperature counted as a hot day
-LONG_DRY_DAYS = 30      # past days without rain = long dry spell
+LONG_DRY_DAYS = 60      # past days without rain = long dry spell
 FLUSH_DRY_DAYS = 14     # dry days before heavy rain = "first flush"
 
 

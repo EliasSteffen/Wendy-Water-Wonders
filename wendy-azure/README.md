@@ -21,7 +21,7 @@ Browser ──► /api/map (Azure Maps) ──► /api/state (JSON) ◄───
 | `functions/logic.py` | Risikologik: Salz, Keime, Ausweichstelle, Testpriorität. Reines Python, lokal testbar |
 | `functions/forecast.py` | Ausblick für die nächsten Tage (Salz, Keime). Hier kommen neue Vorhersagen dazu |
 | `functions/points.json` | Die 14 Wasserstellen. **Koordinaten sind Platzhalter bei Lodwar** |
-| `functions/static/map.html` | Karte für Wendy, mit Testergebnis-Formular und Demo-Knöpfen |
+| `functions/static/map.html` | Dashboard für Wendy: Karte, Kennzahlen, Salzkurve, Reset und Farbe pro Stelle, verstecktes Demo-Fenster |
 | `../pi/uploader.py` | Läuft auf dem Pi: Sensoren lesen, puffern, hochladen, Twin empfangen (alt: `device/pi_sender.py` für Arduino) |
 | `device/simulate_points.py` | Simuliert die 13 Stellen ohne Hardware, mit Befehlen für die Demo |
 
@@ -171,13 +171,16 @@ Benachrichtigt wird **nur, wenn eine Stelle schlechter wird**, damit es keine Fl
 
 ## 6. Demo-Ablauf
 
-1. Karte offen, Simulator läuft, Pi läuft **ohne WLAN**. Die Lampen am Pi reagieren lokal.
-2. Salz ins Wasser an wp07, dann Pi-WLAN an (Handy-Hotspot = „Wendy kommt an“). Der Puffer lädt hoch, wp07 wird rot, und die Linie zur Ausweichstelle erscheint.
-3. SMS und Telegram kommen an: „too salty for people … Nearest alternative …“
-4. Knopf **Heavy rain**: Brunnen ohne Schutz werden gelb oder rot, und „Test today“ sortiert sich neu.
-5. Formular: „wp06 H2S positive“ → wp06 rot. Danach „negative“ senden.
-6. Knopf **Dry & hot**, dann im Simulator `salt wp03`: wp03 bekommt einen orangen Ring („getting worse soon“), und die SMS enthält „Outlook: … no relief expected in the next 10 days“.
-7. Knopf **Real weather**: zurück zur echten Vorhersage.
+Das Dashboard zeigt nur das Wichtigste: Kennzahlen oben, Karte, „Needs attention“, die ausgewählte Stelle mit Salzkurve und die nächsten 10 Tage. Die Demo-Knöpfe sind versteckt: Knopf **Demo** unten rechts auf der Karte oder Taste **D**.
+
+Bei jeder Stelle (auf der Karte anklicken) gibt es unten **Set light** (blau, gelb, rot von Hand setzen) und **Reset**. Von Hand gesetzte Farben lösen keine SMS aus. **Reset** setzt die Stelle zurück: Testergebnisse und Handfarbe weg, der aktuelle Messwert gilt als neuer Normalwert, und die nächste Auswertung schickt keine Alarme. Bei der LIVE-Station (wp07) vorher Name eintragen und „I checked the water“ anhaken: Reset schaltet dann auch die Lampen an der Station aus (über den Device Twin). Eine von Hand gesetzte Farbe geht ebenfalls an die Lampen der Station. **Reset all** im Demo-Fenster macht das für alle Stellen und schaltet das Demo-Wetter aus. Läuft der Simulator mit einem Salz-Ereignis, dort zusätzlich `clear all` tippen.
+
+1. Vorher: **Reset all** und im Simulator `clear all`. Normal ist dann fast alles blau (wp10 gelb, leicht erhöhtes Salz).
+2. Salz ins Wasser an wp07 (LIVE). wp07 wird rot, die Linie zur Ausweichstelle erscheint, die SMS kommt.
+3. Demo → **Heavy rain**: Brunnen ohne Schutz werden gelb oder rot, „Test today“ sortiert sich neu.
+4. Demo → **Germ test +** für die ausgewählte Stelle → rot. Danach **Germ test −** oder **Reset**.
+5. Demo → **Dry & hot**, dann im Simulator `salt wp03`: wp03 bekommt den orangen Ring („getting worse soon“).
+6. Demo → **Reset all**.
 
 ## Ausblick (Outlook) und neue Vorhersagen
 
