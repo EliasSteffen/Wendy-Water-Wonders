@@ -61,6 +61,26 @@ def env_float(name, default=None):
     return float(value) if value else default
 
 
+def set_env(key, value, path=os.path.join(HERE, ".env")):
+    """Set KEY=value in .env: replace that line or append it, keep everything else."""
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            lines = f.read().splitlines()
+    except OSError:
+        lines = []
+    for i, line in enumerate(lines):
+        if not line.lstrip().startswith("#") and line.split("=", 1)[0].strip() == key:
+            lines[i] = f"{key}={value}"
+            break
+    else:
+        lines.append(f"{key}={value}")
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    os.chmod(tmp, 0o600)                            # .env holds the connection string
+    os.replace(tmp, path)
+
+
 def now_iso():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -125,11 +145,17 @@ class Uploader:
                 cur = json.load(f)
         except (OSError, ValueError):
             cur = {}
+        if "use" in patch and "salt" not in patch:
+            # Sent by older cloud code without salt/germs: don't mix it with a stale salt/germs
+            cur.pop("salt", None)
+            cur.pop("germs", None)
         cur.update({k: v for k, v in patch.items() if not k.startswith("$")})
         with open(self.twin_file, "w", encoding="utf-8") as f:
             json.dump(cur, f, indent=2)
         alt = cur.get("alternative") or {}
-        log("cloud says:", cur.get("use"), "| alternative:", alt.get("id"), alt.get("km"))
+        # salt/germs as sent in this update ("-" = not sent, e.g. by older cloud code)
+        log("cloud says:", cur.get("use"), "| salt", patch.get("salt", "-"), "| germs", patch.get("germs", "-"),
+            "| alternative:", alt.get("id"), alt.get("km"))
         if self.on_twin:
             try:
                 self.on_twin(cur)
@@ -222,10 +248,32 @@ def measure(args):
                 "water_temp_c": args.temp}
     import sensors
     m = sensors.read_all(samples=args.samples, ratio=args.ratio, temp_c=args.temp, k=args.k,
-                         ph_v7=args.ph_v7, ph_v4=args.ph_v4)
+                         ph_v7=args.ph_v7, ph_v4=args.ph_v4, turb_clear_v=args.turbidity_clear_v)
     if not args.turbidity:
         m["turbidity_ntu"], m["turbidity_note"] = None, "disabled"
     return m
+
+
+def calibrate_turbidity(args, seconds=30):
+    """Clear-water reference for the turbidity sensor. Probe in clear water (no bubbles,
+    best in an opaque cup: room light shifts the reading), then run --calibrate-turbidity.
+    Saves the sensor voltage as TURBIDITY_CLEAR_V in .env if the reading is stable."""
+    import statistics
+    import sensors
+    log(f"turbidity calibration: probe in clear water, don't touch it ({seconds} s)")
+    vals = []
+    end = time.time() + seconds
+    while time.time() < end:
+        vals.append(sensors.read_voltage(sensors.TURBIDITY_CHANNEL, args.samples) * args.ratio)
+        time.sleep(0.5)
+    clear_v, low, high = statistics.median(vals), min(vals), max(vals)
+    log(f"sensor in clear water: {clear_v:.3f} V (min {low:.3f}, max {high:.3f}, ratio {args.ratio:g})")
+    if clear_v < 0.5:
+        sys.exit("almost no signal: is the sensor powered and the probe in the water?")
+    if high - low > sensors.TURBIDITY_CLEAR_DEADBAND * clear_v:
+        sys.exit("not stable (spread over 5 %): shade the cup, remove bubbles, don't touch, run again")
+    set_env("TURBIDITY_CLEAR_V", f"{clear_v:.3f}")
+    log("saved TURBIDITY_CLEAR_V in .env. If the service runs: sudo systemctl restart water-uploader")
 
 
 def start_leds(args):
@@ -277,10 +325,16 @@ def main():
     ap.add_argument("--no-turbidity", dest="turbidity", action="store_false",
                     default=os.environ.get("TURBIDITY_ENABLED", "1") != "0",
                     help="send turbidity as null while the sensor isn't wired right (TURBIDITY_ENABLED=0)")
+    ap.add_argument("--turbidity-clear-v", type=float, default=env_float("TURBIDITY_CLEAR_V"),
+                    help="turbidity sensor voltage in clear water (set by --calibrate-turbidity)")
+    ap.add_argument("--calibrate-turbidity", action="store_true",
+                    help="measure clear water for 30 s and save TURBIDITY_CLEAR_V in .env, then exit")
     ap.add_argument("--led-pins", default=os.environ.get("LED_PINS", "17,27,22"),
                     help="GPIO numbers of the white, yellow, red LED (default 17,27,22)")
     ap.add_argument("--no-leds", action="store_true", help="don't use the status LEDs")
     args = ap.parse_args()
+    if args.calibrate_turbidity:
+        return calibrate_turbidity(args)
 
     # systemctl stop sends SIGTERM: exit through the finally below, so the LEDs go dark
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))

@@ -23,6 +23,10 @@ TDS_MIN_V = 0.01
 TURBIDITY_MIN_V = 0.05
 PH_MIN_V = 0.05
 
+# Turbidity readings up to 5 % below the clear-water reference still count as clear: the probe
+# is an infrared light barrier with an open gap, so room light and ADC steps move it a little
+TURBIDITY_CLEAR_DEADBAND = 0.05
+
 _adc = {}
 
 
@@ -60,20 +64,29 @@ def tds_from_voltage(v, temp_c=25.0, k=1.0):
 
 
 # --------------------------------------------------------------- turbidity --
-def turbidity_from_voltage(v_adc, ratio):
+def turbidity_from_voltage(v_adc, ratio, clear_v=None):
     """Returns (ntu, v_sensor, note). ntu is None if the reading is implausible.
 
-    NTU formula is only valid for 2.5-4.2 V at the sensor:
+    NTU formula (DFRobot) is only valid for 2.5-4.2 V at the sensor:
       >= 4.2 V -> 0 NTU, < 2.5 V -> very turbid (reported as 3000, note "over_range").
+    clear_v = sensor voltage in clear water (`uploader.py --calibrate-turbidity`). Each sensor
+    gives a different voltage in clear water, so the reading is scaled to put clear water at
+    the formula's 0 NTU point (4.2 V); within TURBIDITY_CLEAR_DEADBAND below it is still clear.
     """
     if v_adc is None or v_adc < TURBIDITY_MIN_V:
         return None, v_adc, "no_signal"          # wiring problem: send null, never crash
     v = v_adc * ratio
-    if v >= 4.2:
+    v_curve = v
+    if clear_v:
+        rel = v / clear_v                        # 1.0 = as clear as the calibration water
+        if rel >= 1 - TURBIDITY_CLEAR_DEADBAND:
+            return 0.0, round(v, 3), "ok"
+        v_curve = 4.2 * rel / (1 - TURBIDITY_CLEAR_DEADBAND)
+    if v_curve >= 4.2:
         return 0.0, round(v, 3), "ok"
-    if v < 2.5:
+    if v_curve < 2.5:
         return 3000.0, round(v, 3), "over_range"
-    ntu = -1120.4 * v ** 2 + 5742.3 * v - 4352.9
+    ntu = -1120.4 * v_curve ** 2 + 5742.3 * v_curve - 4352.9
     return round(max(ntu, 0.0), 1), round(v, 3), "ok"
 
 
@@ -92,7 +105,7 @@ def ph_from_voltage(v, v7=None, v4=None):
     return round(ph, 2), "ok"
 
 
-def read_all(samples=25, ratio=1.5, temp_c=25.0, k=1.0, ph_v7=None, ph_v4=None):
+def read_all(samples=25, ratio=1.5, temp_c=25.0, k=1.0, ph_v7=None, ph_v4=None, turb_clear_v=None):
     """One complete measurement. Any failing sensor becomes None instead of an exception.
     The sensors are read one after another (the TDS probe can disturb the pH probe)."""
     out = {"tds_v": None, "ec_us_cm": None, "tds_ppm": None,
@@ -107,7 +120,7 @@ def read_all(samples=25, ratio=1.5, temp_c=25.0, k=1.0, ph_v7=None, ph_v4=None):
         out["tds_error"] = str(e)
     try:
         v = read_voltage(TURBIDITY_CHANNEL, samples)
-        out["turbidity_ntu"], out["turbidity_v"], out["turbidity_note"] = turbidity_from_voltage(v, ratio)
+        out["turbidity_ntu"], out["turbidity_v"], out["turbidity_note"] = turbidity_from_voltage(v, ratio, turb_clear_v)
     except Exception as e:
         out["turbidity_error"] = str(e)
     try:

@@ -26,6 +26,8 @@ cp .env.example .env && nano .env                  # paste the connection string
 The connection string comes from Azure (ask Maxi, it's a password):
 `az iot hub device-identity connection-string show -n hub-wendy7973 -d wp07 -o tsv`
 
+Turbidity: the divider is 10 kΩ + 10 kΩ, so `TURBIDITY_DIVIDER_RATIO=2.0`. Every sensor gives a different voltage in clear water, so calibrate once (and again on site): probe in clear water, no bubbles, ideally in an opaque cup (room light shifts the reading), then `.venv/bin/python uploader.py --calibrate-turbidity`. It measures for 30 s and saves `TURBIDITY_CLEAR_V` in `.env` only if the reading is stable. Clear water then reads 0 NTU; up to 5 % darker still counts as clear. Set `TURBIDITY_ENABLED=1` and restart the service.
+
 pH: run `python3 ph_test.py --calibrate` with pH 7.0 and pH 4.0 buffers and put the two voltages into `.env` as `PH_V7` / `PH_V4`. Until then pH is sent as `null` (with `ph_note: "not_calibrated"`); the raw voltage `ph_v` is always sent.
 
 ## Test
@@ -65,7 +67,7 @@ sudo systemctl restart water-uploader
 journalctl -u water-uploader -f                           # check: "every 5s"
 ```
 
-Set it back to `30` after the demo. The IoT Hub free tier allows ~8,000 messages per day: 30 s is fine all day, 5 s only for a few hours. If the quota runs out, uploads fail and the measurements simply stay in the buffer until the next day.
+The IoT Hub runs on the S1 tier (400,000 messages per day), so even one measurement per second (86,400) fits. If the quota ever runs out, uploads fail and the measurements simply stay in the buffer until the next day.
 
 Without the service, for a quick try: `sudo systemctl stop water-uploader`, then `.venv/bin/python uploader.py --interval 5`.
 
@@ -81,6 +83,7 @@ Without the service, for a quick try: `sudo systemctl stop water-uploader`, then
 | `--point-id` / `POINT_ID` | wp07 | which water point this station is on the map |
 | `--websockets` / `IOTHUB_WEBSOCKETS=1` | off | use port 443 if the Wi-Fi blocks MQTT port 8883 |
 | `--no-turbidity` / `TURBIDITY_ENABLED=0` | on | send turbidity as `null` while the sensor isn't wired right |
+| `--turbidity-clear-v` / `TURBIDITY_CLEAR_V` | empty | sensor voltage in clear water, written by `--calibrate-turbidity`; empty = uncalibrated DFRobot formula |
 | `--led-pins` / `LED_PINS` | 17,27,22 | GPIO numbers of the white, yellow, red LED |
 | `--no-leds` | off | don't use the LEDs |
 | `--batch` / `UPLOAD_BATCH` | 100 | measurements per upload message |
@@ -106,7 +109,7 @@ The cloud answers via the device twin (`desired.json`): recommended use (`livest
 | LED | On when | Comes from |
 |---|---|---|
 | white | the station software runs (off = not running, e.g. crashed or stopped) | `uploader.py` |
-| yellow | water is suspicious: probably not drinkable as it is, e.g. boil or chlorinate first | Pi: TDS > 800 ppm, pH outside 6.5–8.5, turbidity > 50 NTU · cloud: salt elevated or rising, any germ risk |
+| yellow | water is suspicious: probably not drinkable as it is, e.g. boil or chlorinate first | Pi: TDS > 800 ppm, pH outside 6.5–8.5, turbidity > 500 NTU · cloud: salt elevated or rising, any germ risk |
 | red | water is not drinkable, whatever you do (too salty: boiling makes it worse) | Pi: TDS > 1000 ppm · cloud: salt red |
 
 Only one of yellow/red is lit, the worse one wins. Only white means "no anomaly measured", not "safe". The Pi's own rules work offline; the germ risk (rain, lab tests, source type) only comes from the cloud. The salt limits are the same placeholders as in `wendy-azure/functions/logic.py`.
@@ -115,7 +118,7 @@ Only one of yellow/red is lit, the worse one wins. Only white means "no anomaly 
 
 To switch it off, someone who checked the water point uses **Station lights → Reset water** in Wendy's dashboard (`/api/map`): pick the station, enter a name, tick "I checked this water point myself". The Function `/api/reset` writes `reset_water` (id, name, time) into the device twin and notifies the team (e-mail/Telegram). The twin keeps it, so a station that is offline gets the reset when it reconnects. The Pi's log shows `LED warning cleared by <name> in the dashboard`.
 
-After a reset, new measurements and new cloud verdicts can switch the warning on again; the cloud verdict that was there at the reset does not.
+After a reset, the warning comes back when a measurement on the Pi is bad again, or when the cloud's verdict gets worse (none → yellow → red). The same cloud verdict sent again does not bring it back.
 
 Wiring (BCM numbers, GPIO → resistor → long LED leg, short leg → GND):
 
