@@ -1,0 +1,22 @@
+{
+  "name": "animations",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Animated guides for the water station: Raspberry Pi 5 + MCP3008 + TDS, turbidity and pH sensors",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render WiringGuide out/wiring-guide.mp4",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.530",
+    "@remotion/google-fonts": "4.0.530",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.530"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.2",
+    "typescript": "5.9.3"
+  }
+}
