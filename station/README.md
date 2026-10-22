@@ -1,6 +1,6 @@
 # Pi: water sensors → Azure IoT Hub
 
-Raspberry Pi 5 + MCP3008 (TDS on CH0, turbidity on CH1, pH on CH2). See `../CLAUDE.md` for wiring.
+Raspberry Pi 5 + MCP3008 (TDS on CH0, turbidity on CH1, pH on CH2). Wiring, parts and calibration: [`../docs/hardware.md`](../docs/hardware.md).
 
 | File | What |
 |---|---|

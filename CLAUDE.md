@@ -16,6 +16,8 @@ The station code in `station/` runs on the Pi and uploads to Azure; the cloud si
 | `simulator/` | Simulates the other 13 water points for the demo |
 | `analysis/turkana-map/` | Map of water points and cell towers in Turkana |
 | `animations/` | Remotion videos of the wiring |
+| `docs/hardware.md` | Parts, wiring, formulas, calibration, lessons learned (for people; keep it in sync with this file) |
+| `tests/` | pytest for sensors, LEDs, risk logic and outlook; run `pytest` and `ruff check .` before committing |
 
 ## The Pi
 

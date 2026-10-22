@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it as below."
+title: "Wendy's Early Signal: water-quality early warning for water points in Turkana, Kenya"
+type: software
+license: MIT
+authors:
+  - given-names: Jolanda
+    family-names: Bolt
+  - given-names: Merlind C.
+    family-names: Pohl
+  - given-names: Maximilian
+    family-names: Schwingel
+  - given-names: Elias
+    family-names: Steffen
+  - given-names: Andrea
+    family-names: Stefke
+keywords:
+  - water quality
+  - early warning
+  - raspberry-pi
+  - iot
+  - azure
+  - kenya

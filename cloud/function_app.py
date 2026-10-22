@@ -193,7 +193,7 @@ def _send_email(text):
                 "subject": f"[Wendy's Early Signal] {lines[0][:100] if lines else 'Alert'}",
                 "plainText": text,
                 "html": "<div style='font-family:Segoe UI,Arial,sans-serif;font-size:15px'>"
-                        + "<br>".join(html.escape(l) for l in lines) + "</div>",
+                        + "<br>".join(html.escape(line) for line in lines) + "</div>",
             },
         }
         client.begin_send(message)   # the request is sent here; no need to wait for the poller
