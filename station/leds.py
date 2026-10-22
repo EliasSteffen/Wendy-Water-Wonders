@@ -13,7 +13,7 @@ is kept in alarm.json, so it survives restarts.
 
 Two sources can raise the warning:
   local  the latest measurement on the Pi, so the LEDs also work offline
-         (salt limits as in wendy-azure/functions/logic.py, pH outside 6.5-8.5, turbid water)
+         (salt limits as in cloud/logic.py, pH outside 6.5-8.5, turbid water)
   cloud  the cloud's verdict from the device twin (desired.json). Only the cloud knows the
          germ risk (rain, lab tests, type of water source). The cloud raises the warning only
          when its verdict gets worse (none -> yellow -> red), so a verdict a person has reset
@@ -41,7 +41,7 @@ from datetime import datetime, timezone
 LEVELS = ["none", "yellow", "red"]
 PINS = (17, 27, 22)            # white, yellow, red
 
-# Local limits. Salt as in the cloud (wendy-azure/functions/logic.py); placeholders until WHH agrees
+# Local limits. Salt as in the cloud (cloud/logic.py); placeholders until WHH agrees
 TDS_YELLOW = 700               # ppm: getting salty
 TDS_RED = 800                  # ppm: too salty for people
 PH_OK = (6.5, 8.5)             # WHO range for drinking water

@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from azure.iot.device import IoTHubDeviceClient, Message
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-POINTS_FILE = os.environ.get("POINTS_FILE", os.path.join(HERE, "..", "functions", "points.json"))
+POINTS_FILE = os.environ.get("POINTS_FILE", os.path.join(HERE, "..", "cloud", "points.json"))
 REAL = set(os.environ.get("REAL_DEVICE_IDS", "wp07").split(","))
 INTERVAL = float(os.environ.get("SIM_INTERVAL", "5"))
 

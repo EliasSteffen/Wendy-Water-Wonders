@@ -1,10 +1,11 @@
 # Pi: water sensors → Azure IoT Hub
 
-Raspberry Pi 5 + MCP3008 (TDS on CH0, turbidity on CH1, pH on CH2). See `CLAUDE.md` for wiring.
+Raspberry Pi 5 + MCP3008 (TDS on CH0, turbidity on CH1, pH on CH2). See `../CLAUDE.md` for wiring.
 
 | File | What |
 |---|---|
-| `sensors.py` | Shared sensor code: median ADC reads, TDS, turbidity and pH conversion. Import it from `tds_test.py` / `turbidity_test.py` / `ph_test.py` instead of copying the formulas |
+| `sensors.py` | Shared sensor code: median ADC reads, TDS, turbidity and pH conversion. Everything else imports it; don't copy the formulas |
+| `tds_test.py` / `turbidity_test.py` / `ph_test.py` | Live readings and calibration per sensor, for wiring and testing. `turbidity_test.py --scan` shows all 8 ADC channels |
 | `uploader.py` | Measures every 30 s (configurable), buffers in SQLite, uploads to Azure IoT Hub, deletes what the hub acknowledged, receives the device twin, drives the LEDs |
 | `leds.py` | Status LEDs white / yellow / red; `python leds.py` is the wiring test |
 | `.env.example` | Template for `~/water-quality/.env` (connection string, pH calibration, interval) |
@@ -13,18 +14,18 @@ Raspberry Pi 5 + MCP3008 (TDS on CH0, turbidity on CH1, pH on CH2). See `CLAUDE.
 ## Setup on the Pi (once)
 
 ```bash
-# from the repo root on your laptop
-scp pi/sensors.py pi/uploader.py pi/leds.py pi/.env.example pi/water-uploader.service hacki:~/water-quality/
+# from the repo root on your laptop; <pi> is the Pi's SSH host, e.g. user@raspberrypi.local
+scp station/*.py station/.env.example station/water-uploader.service <pi>:~/water-quality/
 
-ssh hacki
+ssh <pi>
 cd ~/water-quality
 python3 -m venv --system-site-packages .venv      # keeps apt's gpiozero/spidev importable
 .venv/bin/pip install azure-iot-device
 cp .env.example .env && nano .env                  # paste the connection string for device wp07
 ```
 
-The connection string comes from Azure (ask Maxi, it's a password):
-`az iot hub device-identity connection-string show -n hub-wendy7973 -d wp07 -o tsv`
+The connection string comes from Azure. It is a password, so never commit it:
+`az iot hub device-identity connection-string show -n <your-hub> -d wp07 -o tsv`
 
 Turbidity: the divider is 10 kΩ + 10 kΩ, so `TURBIDITY_DIVIDER_RATIO=2.0`. Every sensor gives a different voltage in clear water, so calibrate once (and again on site): probe in clear water, no bubbles, ideally in an opaque cup (room light shifts the reading), then `.venv/bin/python uploader.py --calibrate-turbidity`. It measures for 30 s and saves `TURBIDITY_CLEAR_V` in `.env` only if the reading is stable. Clear water then reads 0 NTU; up to 5 % darker still counts as clear. Set `TURBIDITY_ENABLED=1` and restart the service.
 
@@ -61,7 +62,7 @@ Needs the setup above first (`.env` with the connection string, service installe
 The default is one measurement every 30 s. To change it, edit `INTERVAL_S` in `~/water-quality/.env` and restart:
 
 ```bash
-ssh hacki
+ssh <pi>
 sed -i 's/^INTERVAL_S=.*/INTERVAL_S=5/' ~/water-quality/.env
 sudo systemctl restart water-uploader
 journalctl -u water-uploader -f                           # check: "every 5s"
@@ -109,10 +110,10 @@ The cloud answers via the device twin (`desired.json`): recommended use (`livest
 | LED | On when | Comes from |
 |---|---|---|
 | white | the station software runs (off = not running, e.g. crashed or stopped) | `uploader.py` |
-| yellow | water is suspicious: probably not drinkable as it is, e.g. boil or chlorinate first | Pi: TDS > 800 ppm, pH outside 6.5–8.5, turbidity > 500 NTU · cloud: salt elevated or rising, any germ risk |
-| red | water is not drinkable, whatever you do (too salty: boiling makes it worse) | Pi: TDS > 1000 ppm · cloud: salt red |
+| yellow | water is suspicious: probably not drinkable as it is, e.g. boil or chlorinate first | Pi: TDS > 700 ppm, pH outside 6.5–8.5, turbidity > 500 NTU · cloud: salt elevated or rising, any germ risk |
+| red | water is not drinkable, whatever you do (too salty: boiling makes it worse) | Pi: TDS > 800 ppm · cloud: salt red |
 
-Only one of yellow/red is lit, the worse one wins. Only white means "no anomaly measured", not "safe". The Pi's own rules work offline; the germ risk (rain, lab tests, source type) only comes from the cloud. The salt limits are the same placeholders as in `wendy-azure/functions/logic.py`.
+Only one of yellow/red is lit, the worse one wins. Only white means "no anomaly measured", not "safe". The Pi's own rules work offline; the germ risk (rain, lab tests, source type) only comes from the cloud. The salt limits are the same placeholders as in `cloud/logic.py`.
 
 **Warnings stay on until a person resets them.** Yellow and red switch on automatically and can only go up (yellow → red). Better water does not switch them off. The warning is kept in `alarm.json`, so it also survives a restart.
 
@@ -135,6 +136,6 @@ The cloud only sends the germ level (`salt` / `germs` in the twin) after the Fun
 
 ## Sensor range
 
-The TDS probe outputs at most ~2.3 V, which is about 1100 ppm. The cloud's "too salty for people" limit is 1000 ppm, so for the salt demo dissolve a lot of salt.
+The TDS probe outputs at most ~2.3 V, which is about 1100 ppm. The cloud's "too salty for people" limit is 800 ppm, so for the salt demo dissolve plenty of salt.
 
 The cloud does not store pH yet (`logic.py` ignores the field); it arrives in the IoT Hub but isn't shown on the map.

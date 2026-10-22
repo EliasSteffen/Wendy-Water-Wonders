@@ -54,13 +54,20 @@ def read_voltage(ch, samples=25, delay=0.01):
 
 
 # --------------------------------------------------------------------- TDS --
+TDS_FACTOR = 0.5                                 # ppm per uS/cm
+
+
+def raw_ec(v):
+    """EC in uS/cm before calibration and temperature compensation (DFRobot GravityTDS cubic fit)."""
+    return 133.42 * v ** 3 - 255.86 * v ** 2 + 857.39 * v
+
+
 def tds_from_voltage(v, temp_c=25.0, k=1.0):
     """DFRobot GravityTDS method. Returns (ec25 in uS/cm, tds in ppm) or (None, None)."""
     if v is None or v < TDS_MIN_V:
         return None, None                       # probe not in water
-    ec_raw = 133.42 * v ** 3 - 255.86 * v ** 2 + 857.39 * v
-    ec25 = ec_raw * k / (1 + 0.02 * (temp_c - 25))
-    return round(ec25, 1), round(ec25 * 0.5, 1)
+    ec25 = raw_ec(v) * k / (1 + 0.02 * (temp_c - 25))
+    return round(ec25, 1), round(ec25 * TDS_FACTOR, 1)
 
 
 # --------------------------------------------------------------- turbidity --
