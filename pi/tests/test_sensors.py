@@ -1,4 +1,4 @@
-"""Conversions in station/sensors.py: pure maths, no hardware needed."""
+"""Conversions in pi/sensors.py: pure maths, no hardware needed."""
 import pytest
 
 import sensors

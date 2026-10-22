@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "reading.schema.json",
+  "title": "Measurement",
+  "description": "One measurement of a water point. The Pi uses the long field names, the simulator the short ones; the cloud accepts both. A value the station cannot trust is null.",
+  "type": "object",
+  "required": ["ts"],
+  "properties": {
+    "deviceId": { "type": "string", "description": "IoT Hub device ID, e.g. wp07" },
+    "point_id": { "type": "string", "description": "Water point on the map; the cloud falls back to the device ID" },
+    "ts": { "type": "string", "format": "date-time", "description": "UTC, e.g. 2026-10-16T19:30:00Z" },
+    "tds_v": { "type": ["number", "null"], "description": "Voltage at ADC channel 0" },
+    "ec_us_cm": { "type": ["number", "null"], "description": "Conductivity at 25 °C in µS/cm" },
+    "tds_ppm": { "type": ["number", "null"], "description": "Salt as TDS in ppm (= EC × 0.5)" },
+    "turbidity_v": { "type": ["number", "null"], "description": "Sensor voltage after undoing the divider" },
+    "turbidity_ntu": { "type": ["number", "null"], "description": "Rough estimate; the trend matters more than the number" },
+    "turbidity_note": { "enum": ["ok", "no_signal", "over_range", "fake", null] },
+    "ph_v": { "type": ["number", "null"], "description": "Voltage at ADC channel 2, always sent" },
+    "ph": { "type": ["number", "null"], "description": "null until the probe is calibrated" },
+    "ph_note": { "enum": ["ok", "no_signal", "not_calibrated", "out_of_range", "fake", null] },
+    "water_temp_c": { "type": ["number", "null"] },
+    "tds_error": { "type": "string" },
+    "turbidity_error": { "type": "string" },
+    "ph_error": { "type": "string" },
+    "ec_us": { "type": ["number", "null"], "description": "Short name for ec_us_cm (simulator)" },
+    "turb_ntu": { "type": ["number", "null"], "description": "Short name for turbidity_ntu (simulator)" },
+    "temp_c": { "type": ["number", "null"], "description": "Short name for water_temp_c (simulator)" },
+    "visits": { "type": "integer", "minimum": 0, "description": "Movements counted since the last measurement (simulator)" }
+  },
+  "additionalProperties": false
+}

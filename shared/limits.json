@@ -1,0 +1,6 @@
+{
+  "_comment": "Placeholders until agreed with water experts. Read by pi/leds.py, cloud/logic.py and the animations.",
+  "tds_ppm": { "yellow": 700, "red": 800, "livestock_red": 5000 },
+  "ph": { "min": 6.5, "max": 8.5 },
+  "turbidity_ntu": { "yellow": 500 }
+}

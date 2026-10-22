@@ -6,4 +6,5 @@ target-version = "py311"
 select = ["E", "F", "W"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["pi/tests", "cloud/tests", "shared/tests"]
+pythonpath = ["pi", "cloud"]

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "batch.schema.json",
+  "title": "Upload message",
+  "description": "What the Pi and the simulator send to the IoT Hub: up to UPLOAD_BATCH buffered measurements, oldest first.",
+  "type": "object",
+  "required": ["readings"],
+  "properties": {
+    "readings": { "type": "array", "minItems": 1, "items": { "$ref": "reading.schema.json" } }
+  },
+  "additionalProperties": false
+}

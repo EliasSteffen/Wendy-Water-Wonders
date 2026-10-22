@@ -16,14 +16,27 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(HERE, "points.json"), encoding="utf-8") as f:
     POINTS = {p["id"]: p for p in json.load(f)}
 
+
+def _load_limits():
+    """shared/limits.json in the repo, or the copy deployed next to this file."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for path in (os.path.join(here, "limits.json"), os.path.join(here, "..", "shared", "limits.json")):
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+    raise FileNotFoundError(f"limits.json not found: copy shared/limits.json next to {__file__}")
+
+
+LIMITS = _load_limits()   # shared with the Pi's lights
+
 # No "green": "none" means "no anomaly measured", never "safe".
 LEVELS = ["none", "yellow", "red"]
 
 # --- Salt (measured directly via conductivity) ---------------------------
 EC_TO_TDS = 0.5            # TDS [mg/L] ~ 0.5-0.7 x EC [uS/cm]; 0.5 matches the Pi (DFRobot method)
-TDS_YELLOW = 700           # getting salty / watch
-TDS_HUMAN_LIMIT = 800      # above: people should avoid it (placeholder, agree with WHH)
-TDS_LIVESTOCK_LIMIT = 5000 # above: not even for livestock
+TDS_YELLOW = LIMITS["tds_ppm"]["yellow"]              # getting salty / watch
+TDS_HUMAN_LIMIT = LIMITS["tds_ppm"]["red"]            # above: people should avoid it (placeholder, agree with WHH)
+TDS_LIVESTOCK_LIMIT = LIMITS["tds_ppm"]["livestock_red"]  # above: not even for livestock
 SALT_RISING_RATIO = 1.15   # EC 15 % above its slow average -> "rising"
 
 # --- Germs (risk model, NOT a measurement) -------------------------------
@@ -32,7 +45,7 @@ GERM_YELLOW = 0.30
 GERM_RED = 0.60
 
 # --- pH (measured at the real station; same range as the station LEDs) ---
-PH_OK = (6.5, 8.5)         # WHO operational range; outside -> watch (yellow)
+PH_OK = (LIMITS["ph"]["min"], LIMITS["ph"]["max"])   # WHO operational range; outside -> watch (yellow)
 
 MAX_ALT_KM = 15            # do not send people further than this
 MAX_DATA_AGE_H = 7 * 24    # alternatives need data newer than this

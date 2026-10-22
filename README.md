@@ -46,37 +46,40 @@ flowchart LR
 | yellow | Suspicious: probably not drinkable as it is | TDS > 700 ppm, pH outside 6.5–8.5, turbidity > 500 NTU, or a germ risk from the cloud |
 | red | Not drinkable, whatever you do (boiling makes salty water worse) | TDS > 800 ppm, or salt red from the cloud |
 
-Yellow and red only go up on their own. They go off when a person who checked the water point presses **Reset water** in the dashboard.
+The limits live in [`shared/limits.json`](shared/limits.json); the Pi, the cloud and the animations all read that file. Yellow and red only go up on their own. They go off when a person who checked the water point presses **Reset water** in the dashboard.
 
 ## Repository
 
 | Folder | What |
 |---|---|
-| [`station/`](station/) | Runs on the Pi: sensor conversions, uploader with offline buffer, LEDs, sensor test scripts |
-| [`cloud/`](cloud/) | Azure Functions: ingest, risk logic, outlook, alerts, dashboard |
+| [`pi/`](pi/) | Runs on the Raspberry Pi: sensor conversions, uploader with offline buffer, LEDs, sensor test scripts |
+| [`cloud/`](cloud/) | Azure Functions: ingest, risk logic, outlook, alerts, live dashboard |
+| [`shared/`](shared/) | What the Pi and the cloud agree on: the limits ([`limits.json`](shared/limits.json)) and the message formats ([`protocol/`](shared/protocol/)) |
 | [`simulator/`](simulator/) | Simulates 13 more water points for the demo |
-| [`analysis/turkana-map/`](analysis/turkana-map/) | Map of water points and cell towers in Turkana: how far is the next mast? |
-| [`animations/`](animations/) | Remotion videos that show the wiring step by step |
+| [`geo/`](geo/) | Turkana map: water points and cell towers, built into GeoJSON for the website and the cloud |
+| [`frontend/`](frontend/) | The project website (GitHub Pages) |
+| [`animations/`](animations/) | Remotion videos: wiring guides and how the station works |
 | [`docs/hardware.md`](docs/hardware.md) | Parts, wiring, formulas, calibration, lessons learned |
-| [`tests/`](tests/) | Tests for the sensor maths, LEDs, risk logic and outlook |
+
+Each Python part has its tests next to it: `pi/tests/`, `cloud/tests/`, `shared/tests/`.
 
 ## Try it without hardware
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                                                    # sensor maths, LEDs, risk logic, outlook
+pytest                                                    # sensor maths, LEDs, risk logic, outlook, protocol
 python3 -c "import sys; sys.path.insert(0, 'cloud'); import logic; print(logic.demo())"
-python3 station/uploader.py --fake --dry-run --count 3 --no-leds
+python3 pi/uploader.py --fake --dry-run --count 3 --no-leds
 ```
 
 `logic.demo()` prints the alert for a salt event at the live station. The uploader with `--fake --dry-run` prints the JSON it would send.
 
 ## Build and run it
 
-- **Station:** parts and wiring in [`docs/hardware.md`](docs/hardware.md), setup on the Pi in [`station/README.md`](station/README.md).
+- **Station:** parts and wiring in [`docs/hardware.md`](docs/hardware.md), setup on the Pi in [`pi/README.md`](pi/README.md).
 - **Cloud:** Azure setup, deployment, alerts and the demo flow in [`cloud/README.md`](cloud/README.md).
 - **Animations:** `cd animations && npm ci && npm run studio`
-- **Turkana map:** `python3 analysis/turkana-map/build_map.py`, then open `analysis/turkana-map/turkana-karte.html`.
+- **Turkana map:** `python3 geo/build_map.py`, then open `geo/dist/turkana-map.html`.
 
 ## What is real and what is a placeholder
 

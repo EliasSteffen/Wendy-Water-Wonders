@@ -9,7 +9,7 @@ International License (CC BY 4.0): https://creativecommons.org/licenses/by/4.0/
 The source code, including the animation source in animations/, is licensed under the
 MIT License (see LICENSE).
 
-Third-party data in analysis/turkana-map/rohdaten/ keeps its own license:
+Third-party data in geo/raw/ keeps its own license:
 - OpenStreetMap data: © OpenStreetMap contributors, Open Database License (ODbL) 1.0
 - Water Point Data Exchange (WPdx): CC BY 4.0
 - geoBoundaries (Kenya counties): license per dataset, see the metadata at geoboundaries.org

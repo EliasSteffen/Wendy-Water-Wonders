@@ -1,0 +1,18 @@
+{
+  "readings": [
+    {
+      "deviceId": "wp07", "point_id": "wp07", "ts": "2026-10-16T19:30:00Z",
+      "tds_v": 0.76, "ec_us_cm": 562.4, "tds_ppm": 281.2,
+      "turbidity_v": 2.009, "turbidity_ntu": 0.0, "turbidity_note": "ok",
+      "ph_v": 1.43, "ph": null, "ph_note": "not_calibrated",
+      "water_temp_c": 25.0
+    },
+    {
+      "deviceId": "wp07", "point_id": "wp07", "ts": "2026-10-16T19:30:30Z",
+      "tds_v": 1.98, "ec_us_cm": 1903.1, "tds_ppm": 951.6,
+      "turbidity_v": null, "turbidity_ntu": null, "turbidity_note": null, "turbidity_error": "SPI read failed",
+      "ph_v": 1.44, "ph": null, "ph_note": "not_calibrated",
+      "water_temp_c": 25.0
+    }
+  ]
+}

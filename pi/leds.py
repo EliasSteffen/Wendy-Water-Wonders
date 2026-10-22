@@ -41,11 +41,22 @@ from datetime import datetime, timezone
 LEVELS = ["none", "yellow", "red"]
 PINS = (17, 27, 22)            # white, yellow, red
 
-# Local limits. Salt as in the cloud (cloud/logic.py); placeholders until WHH agrees
-TDS_YELLOW = 700               # ppm: getting salty
-TDS_RED = 800                  # ppm: too salty for people
-PH_OK = (6.5, 8.5)             # WHO range for drinking water
-TURBIDITY_YELLOW_NTU = 500     # rough sensor: 500 NTU ≈ 8 % darker than the calibration water
+def _load_limits():
+    """shared/limits.json in the repo, or the copy deployed next to this file."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for path in (os.path.join(here, "limits.json"), os.path.join(here, "..", "shared", "limits.json")):
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+    raise FileNotFoundError(f"limits.json not found: copy shared/limits.json next to {__file__}")
+
+
+# Local limits, from the same file as the cloud's; placeholders until WHH agrees
+LIMITS = _load_limits()
+TDS_YELLOW = LIMITS["tds_ppm"]["yellow"]                  # ppm: getting salty
+TDS_RED = LIMITS["tds_ppm"]["red"]                        # ppm: too salty for people
+PH_OK = (LIMITS["ph"]["min"], LIMITS["ph"]["max"])        # WHO range for drinking water
+TURBIDITY_YELLOW_NTU = LIMITS["turbidity_ntu"]["yellow"]  # rough sensor: 500 NTU ≈ 8 % darker than the calibration water
 
 
 def local_level(m):

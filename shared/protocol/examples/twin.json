@@ -1,0 +1,12 @@
+{
+  "use": "livestock_only",
+  "salt": "red",
+  "germs": "none",
+  "level": "red",
+  "advice": ["Do NOT boil: boiling makes salty water worse.", "People: use another water point.", "Livestock: this water can still be used."],
+  "alternative": { "id": "wp05", "name": "Nadapal", "km": 9.5, "lat": 3.118, "lon": 35.561 },
+  "rain_forecast_48h": 0.0,
+  "dry_days": 30,
+  "updated": "2026-10-16T19:31:00+00:00",
+  "reset_water": { "id": "3f9a1c2b7d10", "by": "Wendy", "ts": "2026-10-17T01:03:00Z" }
+}

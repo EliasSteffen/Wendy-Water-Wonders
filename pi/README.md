@@ -15,7 +15,7 @@ Raspberry Pi 5 + MCP3008 (TDS on CH0, turbidity on CH1, pH on CH2). Wiring, part
 
 ```bash
 # from the repo root on your laptop; <pi> is the Pi's SSH host, e.g. user@raspberrypi.local
-scp station/*.py station/.env.example station/water-uploader.service <pi>:~/water-quality/
+scp pi/*.py pi/.env.example pi/water-uploader.service shared/limits.json <pi>:~/water-quality/
 
 ssh <pi>
 cd ~/water-quality

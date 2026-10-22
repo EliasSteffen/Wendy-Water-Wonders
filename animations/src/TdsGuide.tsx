@@ -134,7 +134,7 @@ const CAPTIONS: Partial<Record<string, CaptionSpec>> = {
 };
 const STEP_LABELS = { context: "ALREADY DONE", why: "GOOD NEWS", test: "CHECKPOINT", done: "COMPLETE" };
 
-// Matches the output format of station/tds_test.py.
+// Matches the output format of pi/tds_test.py.
 const TERM: TermLine[] = [
   { at: sec(0.3), text: "$ python3 tds_test.py" },
   { at: sec(0.9), text: "TDS on MCP3008 CH0 · 25.0 °C · k = 1.00", info: true },

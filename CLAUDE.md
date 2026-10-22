@@ -2,22 +2,25 @@
 
 Hackathon project (BCG Platinion · Fighting World Hunger): a water-quality station.
 A Raspberry Pi 5 reads three analog water sensors (TDS, turbidity, pH) through an MCP3008 ADC.
-The station code in `station/` runs on the Pi and uploads to Azure; the cloud side (Functions, risk logic, dashboard) is in `cloud/`.
+The station code in `pi/` runs on the Pi and uploads to Azure; the cloud side (Functions, risk logic, dashboard) is in `cloud/`.
 
 ## Repo layout
 
 | Path | What |
 |---|---|
-| `station/` | Python that runs **on the Pi** (deployed to `~/water-quality/`): `sensors.py` (all conversions), `uploader.py`, `leds.py`, systemd unit |
-| `station/tds_test.py` | TDS sensor: live readings and calibration (CH0) |
-| `station/turbidity_test.py` | Turbidity sensor: live readings (CH1); `--scan` shows all 8 ADC channels |
-| `station/ph_test.py` | pH sensor: live readings and two-point calibration (CH2) |
+| `pi/` | Python that runs **on the Pi** (deployed to `~/water-quality/`): `sensors.py` (all conversions), `uploader.py`, `leds.py`, systemd unit |
+| `pi/tds_test.py` | TDS sensor: live readings and calibration (CH0) |
+| `pi/turbidity_test.py` | Turbidity sensor: live readings (CH1); `--scan` shows all 8 ADC channels |
+| `pi/ph_test.py` | pH sensor: live readings and two-point calibration (CH2) |
 | `cloud/` | Azure Functions: ingest, risk logic (`logic.py`), forecast, dashboard (`static/map.html`) |
+| `shared/limits.json` | Salt, pH and turbidity limits, read by `pi/leds.py`, `cloud/logic.py` and the animations. Change limits only here |
+| `shared/protocol/` | JSON Schemas and examples for the upload message and the device twin; tests check the Pi and the cloud against them |
 | `simulator/` | Simulates the other 13 water points for the demo |
-| `analysis/turkana-map/` | Map of water points and cell towers in Turkana |
-| `animations/` | Remotion videos of the wiring |
+| `geo/` | Map of water points and cell towers in Turkana (`build_map.py` writes `geo/dist/`) |
+| `frontend/` | Project website (GitHub Pages), not built yet |
+| `animations/` | Remotion videos: wiring guides and how the station works |
 | `docs/hardware.md` | Parts, wiring, formulas, calibration, lessons learned (for people; keep it in sync with this file) |
-| `tests/` | pytest for sensors, LEDs, risk logic and outlook; run `pytest` and `ruff check .` before committing |
+| `*/tests/` | pytest next to each part; run `pytest` and `ruff check .` from the repo root before committing |
 
 ## The Pi
 
@@ -25,7 +28,7 @@ The station code in `station/` runs on the Pi and uploads to Azure; the cloud si
 - Wi-Fi only (no Ethernet). NetworkManager has two profiles: the venue network (priority 0) and a phone hotspot (priority 10, preferred whenever the Pi reconnects). The IP depends on the network, so use `raspberrypi.local` instead of a fixed address.
 - Raspberry Pi OS (Debian 12 bookworm), Python 3.11, aarch64. The clock is NTP-synced (Europe/Berlin); send timestamps in UTC.
 - SPI is enabled. User `user` is in the `gpio` and `spi` groups. `gpiozero` and `spidev` come from apt.
-- Scripts live in `~/water-quality/`. Deploy from the repo root: `scp station/*.py <pi>:~/water-quality/`
+- Scripts live in `~/water-quality/`. Deploy from the repo root: `scp pi/*.py shared/limits.json <pi>:~/water-quality/`
 - System Python is externally managed (PEP 668), so `pip install` outside a venv fails. Create the venv **with system site packages** so the apt-installed `gpiozero`/`spidev` stay importable:
   ```bash
   python3 -m venv --system-site-packages ~/water-quality/.venv
@@ -47,7 +50,7 @@ Don't change channels, divider ratio or VREF in code without checking the breadb
 
 ## Converting readings
 
-All conversions live in `station/sensors.py`; the test scripts and the uploader import them. Don't copy the formulas.
+All conversions live in `pi/sensors.py`; the test scripts and the uploader import them. Don't copy the formulas.
 
 TDS (DFRobot GravityTDS method):
 ```
@@ -76,7 +79,7 @@ Probes in the same water can disturb each other (the TDS board drives an AC curr
 - MCP3008 and SPI respond (CH0 jumpered to GND read 0.0).
 - TDS: `tds_test.py` works; CH0 reads ≈ 0 V until the probe is in water.
 - Turbidity: **working and calibrated** (2026-10-17). Divider 10 kΩ + 10 kΩ → `TURBIDITY_DIVIDER_RATIO=2.0`. This sensor gives only ~2.0 V in clear tap water (not the 4.2 V of DFRobot's formula), so `uploader.py --calibrate-turbidity` stores the clear-water voltage as `TURBIDITY_CLEAR_V` (2.009 V) and readings are scaled to it; up to 5 % darker still counts as 0 NTU, LED yellow from 500 NTU (~8 % darker). The probe is an open infrared light barrier: room light moves the reading (jumps of ~20 % seen), so use an opaque cup and recalibrate on site. `TURBIDITY_ENABLED=1`. Earlier "floating CH1" diagnosis was wrong: CH1 is driven, the sensor output itself was changing. Code must handle missing or implausible values: send `null`, never crash.
-- Uploader: `sensors.py` + `uploader.py` + `leds.py` from `station/` are deployed to `~/water-quality/`; `.env` exists, real upload to IoT Hub works (cloud answered `livestock_only` for salty water on 2026-10-16). The systemd service `water-uploader` is installed but **not enabled at boot**: the user starts and stops it manually (`sudo systemctl start|stop water-uploader`). Don't enable it. pH calibration goes into `.env` as `PH_V7` / `PH_V4`.
+- Uploader: `sensors.py` + `uploader.py` + `leds.py` from `pi/` are deployed to `~/water-quality/`; `.env` exists, real upload to IoT Hub works (cloud answered `livestock_only` for salty water on 2026-10-16). The systemd service `water-uploader` is installed but **not enabled at boot**: the user starts and stops it manually (`sudo systemctl start|stop water-uploader`). Don't enable it. pH calibration goes into `.env` as `PH_V7` / `PH_V4`.
 - Status LEDs (`leds.py`): white GPIO17 (100 Ω), yellow GPIO27 (220 Ω), red GPIO22 (220 Ω), wired and driven by the service. Yellow/red latch (kept in `~/water-quality/alarm.json`) and are only cleared by a person via "Station lights → Reset water" in the dashboard (`POST /api/reset` → twin `reset_water`). No other reset path on purpose (human in the loop).
 - Function App with `/api/reset`, the dashboard section and `salt`/`germs` in the twin is deployed (Maxi, 2026-10-17; first dashboard reset at 01:03). The cloud raises the LEDs only when its verdict gets worse (`cloud_seen` in `alarm.json`); before that fix the same verdict re-sent with a new timestamp undid the reset. The cloud still remembers wp07's last valid salt (1169 ppm from a salt test) until the TDS probe measures real water again.
 - pH: added to the wiring plan (CH2) and `ph_test.py` is on the Pi; not calibrated yet. Calibration values (`--v7`, `--v4`) must be stored somewhere the uploader can read them (config file or env), not hard-coded.
@@ -84,10 +87,10 @@ Probes in the same water can disturb each other (the TDS board drives an AC curr
 
 ## Azure
 
-- Payload, offline buffer, LEDs and all options: `station/README.md`. Cloud setup, risk logic and alerts: `cloud/README.md`.
+- Payload, offline buffer, LEDs and all options: `pi/README.md`. Cloud setup, risk logic and alerts: `cloud/README.md`.
 - The device connection string is read from `IOTHUB_DEVICE_CONNECTION_STRING` in `~/water-quality/.env` on the Pi. **Never commit it.**
 
 ## Conventions
 
-- Python 3.11, standard library plus `gpiozero` and `azure-iot-device`. Small CLI scripts with `argparse`, English comments, matching the style of the existing `station/` scripts.
+- Python 3.11, standard library plus `gpiozero` and `azure-iot-device`. Small CLI scripts with `argparse`, English comments, matching the style of the existing `pi/` scripts.
 - Always test on the real Pi, e.g. `ssh <pi> 'cd ~/water-quality && .venv/bin/python uploader.py --dry-run --count 3'`.

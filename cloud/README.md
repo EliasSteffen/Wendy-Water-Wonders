@@ -3,7 +3,7 @@
 Built during the hackathon. Everything runs on the Azure toolbox (IoT Hub, Functions, Maps) plus Open-Meteo for the weather.
 
 ```
-Pi 5 + MCP3008 (../station/uploader.py, buffer) ──┐
+Pi 5 + MCP3008 (../pi/uploader.py, buffer) ──┐
                                                   ├──► Azure IoT Hub ──► Function "ingest" ──► Table Storage
 simulate_points.py (13 simulated points) ─────────┘                          │
                                                                              ├──► SMS + e-mail + Telegram
@@ -22,12 +22,12 @@ Browser ──► /api/map (Azure Maps) ──► /api/state (JSON) ◄───
 | `forecast.py` | Outlook for the next days (salt, germs). New predictions go here |
 | `points.json` | The 14 water points. **Coordinates are placeholders near Lodwar** |
 | `static/map.html` | Wendy's dashboard: map, situation, salt chart, reset and colour per point |
-| `../station/uploader.py` | Runs on the Pi: reads the sensors, buffers, uploads, receives the device twin |
+| `../pi/uploader.py` | Runs on the Pi: reads the sensors, buffers, uploads, receives the device twin |
 | `../simulator/simulate_points.py` | Simulates the other 13 points without hardware, with commands for the demo |
 
 ## 1. Data contract (Pi → cloud)
 
-The station is a **Raspberry Pi 5 with an MCP3008** (TDS on CH0, turbidity on CH1, pH on CH2). Code and setup: **`../station/`** (`sensors.py`, `uploader.py`, `README.md`).
+The station is a **Raspberry Pi 5 with an MCP3008** (TDS on CH0, turbidity on CH1, pH on CH2). Code and setup: **`../pi/`** (`sensors.py`, `uploader.py`, `README.md`).
 
 The Pi sends buffered batches `{"readings": [ {...}, ... ]}`, each measurement like this:
 
@@ -88,6 +88,7 @@ Locally you need Python 3.11 and the Azure Functions Core Tools v4 (`winget inst
 
 ```powershell
 cd cloud
+Copy-Item ../shared/limits.json .     # the Function reads the limits it shares with the Pi
 func azure functionapp publish func-wendy42
 ```
 
@@ -106,7 +107,7 @@ The map is then at `http://localhost:7071/api/map`.
 
 ## 4. Start the Pi and the simulator
 
-**Real Pi:** see `../station/README.md` (test with `uploader.py --dry-run` first, then without `--dry-run`).
+**Real Pi:** see `../pi/README.md` (test with `uploader.py --dry-run` first, then without `--dry-run`).
 
 ```powershell
 pip install azure-iot-device

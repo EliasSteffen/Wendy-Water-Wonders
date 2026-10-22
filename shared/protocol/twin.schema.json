@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "twin.schema.json",
+  "title": "Device twin (desired properties)",
+  "description": "What the cloud writes back to a real station. The Pi saves it as desired.json and drives the lights from salt, germs and reset_water. IoT Hub adds its own metadata such as $version.",
+  "type": "object",
+  "$defs": {
+    "level": { "enum": ["none", "yellow", "red"] }
+  },
+  "properties": {
+    "use": { "enum": ["unknown", "no_salt_anomaly", "people_caution", "livestock_only", "none"] },
+    "salt": { "$ref": "#/$defs/level", "description": "red: not drinkable at all (red light)" },
+    "germs": { "$ref": "#/$defs/level", "description": "any germ risk means treat before drinking (yellow light)" },
+    "level": { "$ref": "#/$defs/level" },
+    "advice": { "type": "array", "items": { "type": "string" }, "maxItems": 3 },
+    "alternative": {
+      "type": ["object", "null"],
+      "required": ["id", "name", "km"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "km": { "type": "number" },
+        "lat": { "type": "number" },
+        "lon": { "type": "number" }
+      }
+    },
+    "rain_forecast_48h": { "type": "number" },
+    "dry_days": { "type": "integer" },
+    "updated": { "type": "string" },
+    "reset_water": {
+      "type": "object",
+      "description": "Written by 'Reset water' in the dashboard. A new id switches the station's warning off.",
+      "required": ["id"],
+      "properties": { "id": { "type": "string" }, "by": { "type": "string" }, "ts": { "type": "string" } }
+    }
+  }
+}

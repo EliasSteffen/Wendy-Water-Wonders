@@ -51,8 +51,8 @@ const PH_CABLE = [
   p(PH_PROBE_X, 300),
 ];
 
-const ALL_WIRES: WireDef[] = [
-  ...PRIOR,
+// The pH board's wires; StationOverview reuses them.
+export const PH_WIRES: WireDef[] = [
   wire({ id: "phVcc", color: COLORS.v33, step: "plus", route: [PH_PINS.vcc, rail(16, "botPlus")], t: [12.4, 13.8], startPlug: "female" }),
   wire({
     id: "phGnd",
@@ -84,6 +84,8 @@ const ALL_WIRES: WireDef[] = [
     endPlug: "none",
   }),
 ];
+
+const ALL_WIRES: WireDef[] = [...PRIOR, ...PH_WIRES];
 
 const PULSES = [
   pulse(PH_PINS.vcc, COLORS.v33, 11.6, 13.8),
@@ -165,7 +167,7 @@ const CAPTIONS: Partial<Record<string, CaptionSpec>> = {
 };
 const STEP_LABELS = { context: "ALREADY DONE", why: "GOOD NEWS", calibrate: "CHECKPOINT", test: "CHECKPOINT", done: "COMPLETE" };
 
-// Matches the output format of station/ph_test.py.
+// Matches the output format of pi/ph_test.py.
 const TERM: TermLine[] = [
   { at: sec(0.3), text: "$ python3 ph_test.py --calibrate" },
   { at: sec(0.9), text: "Probe in pH 7.0 buffer. Wait ~1 min, then press Enter", info: true },

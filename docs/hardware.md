@@ -1,7 +1,7 @@
 # Hardware
 
 The station is a Raspberry Pi 5 with three analog water sensors read through an MCP3008 ADC, plus three status LEDs.
-Software and setup on the Pi: [`station/README.md`](../station/README.md).
+Software and setup on the Pi: [`pi/README.md`](../pi/README.md).
 
 ## Parts
 
@@ -57,7 +57,7 @@ The [animations](../animations/) show the wiring step by step.
 
 ## From voltage to values
 
-All conversions live in [`station/sensors.py`](../station/sensors.py). Each measurement is the median of ~25 reads.
+All conversions live in [`pi/sensors.py`](../pi/sensors.py). Each measurement is the median of ~25 reads.
 
 TDS (DFRobot GravityTDS method):
 ```

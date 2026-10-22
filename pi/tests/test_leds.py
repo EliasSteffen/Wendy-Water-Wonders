@@ -1,4 +1,4 @@
-"""Status LEDs in station/leds.py: warnings latch until a person resets them."""
+"""Status LEDs in pi/leds.py: warnings latch until a person resets them."""
 import sys
 import types
 

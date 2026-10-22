@@ -1,17 +1,17 @@
 """Baut die Turkana-Karte: Wasserstellen + Funkmasten + Abstandsklassen.
 
-Aufruf:  python3 karte/build_map.py
+Aufruf:  python3 geo/build_map.py
 
-Liest aus karte/rohdaten/:
+Liest aus geo/raw/:
   osm_water.json      Wasserstellen aus OpenStreetMap (Overpass-Export)
   osm_masts.json      Kommunikationsmasten aus OpenStreetMap (Overpass-Export)
   wpdx_basic.json     Wasserstellen aus dem Water Point Data Exchange (WPdx)
   ken_adm1.geojson    Kenias County-Grenzen (geoBoundaries)
   opencellid_639.csv  optional: OpenCellID-Export fuer Kenia (MCC 639)
 
-Schreibt nach karte/:
-  wasserstellen.geojson, masten.geojson, turkana.geojson  (z. B. fuer Azure Maps)
-  turkana-karte.html                                      (interaktive Karte)
+Schreibt nach geo/dist/ (wird mit der Website veroeffentlicht):
+  water-points.geojson, masts.geojson, turkana.geojson  (z. B. fuer Azure Maps)
+  turkana-map.html                                      (interaktive Karte)
 """
 import csv
 import json
@@ -19,7 +19,8 @@ import math
 from pathlib import Path
 
 HERE = Path(__file__).parent
-RAW = HERE / "rohdaten"
+RAW = HERE / "raw"
+OUT = HERE / "dist"
 
 # Abstandsklassen zum naechsten bekannten Mast (km). 35 km ist die technische
 # Grenze fuer 2G (Timing Advance); 5 und 15 km sind grobe Faustwerte.
@@ -185,9 +186,10 @@ def main():
     classify(osm, masts)
     classify(wpdx, masts)
 
-    (HERE / "wasserstellen.geojson").write_text(json.dumps(to_geojson(osm + wpdx), ensure_ascii=False))
-    (HERE / "masten.geojson").write_text(json.dumps(to_geojson(masts), ensure_ascii=False))
-    (HERE / "turkana.geojson").write_text(json.dumps(boundary, ensure_ascii=False))
+    OUT.mkdir(exist_ok=True)
+    (OUT / "water-points.geojson").write_text(json.dumps(to_geojson(osm + wpdx), ensure_ascii=False))
+    (OUT / "masts.geojson").write_text(json.dumps(to_geojson(masts), ensure_ascii=False))
+    (OUT / "turkana.geojson").write_text(json.dumps(boundary, ensure_ascii=False))
 
     # Die SNV-Kartierung (2012) erfasste laendliche Wasserstellen im ganzen County.
     # Die uebrigen OSM-Punkte liegen fast alle im Lager Kakuma/Kalobeyei und in Orten.
@@ -205,7 +207,7 @@ def main():
     }
     template = (HERE / "template.html").read_text()
     html = template.replace("/*__DATA__*/null", json.dumps(payload, ensure_ascii=False))
-    (HERE / "turkana-karte.html").write_text(html)
+    (OUT / "turkana-map.html").write_text(html)
 
     print(f"Wasserstellen OSM: {len(osm)}, WPdx: {len(wpdx)}, Masten: {len(masts)}")
     for label in ("rural", "other", "wpdx"):
