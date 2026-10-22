@@ -78,7 +78,7 @@ python3 pi/uploader.py --fake --dry-run --count 3 --no-leds
 
 - **Station:** parts and wiring in [`docs/hardware.md`](docs/hardware.md), setup on the Pi in [`pi/README.md`](pi/README.md).
 - **Cloud:** Azure setup, deployment, alerts and the demo flow in [`cloud/README.md`](cloud/README.md).
-- **Animations:** `cd animations && npm ci && npm run studio`
+- **Animations:** `cd animations && npm ci && npm run studio` to preview; `npm run render:station` and `npm run render:architecture` write the videos to `animations/out/`. After a new map build, `python3 geo/export_animation_data.py` refreshes the map in the architecture video.
 - **Turkana map:** `python3 geo/build_map.py`, then open `geo/dist/turkana-map.html`.
 
 ## What is real and what is a placeholder

@@ -7,6 +7,7 @@
     "studio": "remotion studio",
     "render": "remotion render WiringGuide out/wiring-guide.mp4",
     "render:station": "remotion render StationOverview out/station-overview.mp4",
+    "render:architecture": "remotion render Architecture out/architecture.mp4",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
