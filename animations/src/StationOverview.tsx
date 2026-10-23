@@ -226,7 +226,7 @@ const StationTitle: React.FC = () => {
               fontSize: 20,
             }}
           >
-            Wendy's Water Wonder · THE STATION
+            Wendy Water Wonders · THE STATION
           </div>
           <div style={{ ...up(a(8)), fontSize: 110, fontWeight: 800, color: "#f8fafc", letterSpacing: -3, marginTop: 30, lineHeight: 1 }}>
             How the station works

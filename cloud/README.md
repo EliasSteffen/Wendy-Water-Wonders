@@ -1,4 +1,4 @@
-# Wendy's Water Wonder – cloud
+# Wendy Water Wonders – cloud
 
 Built during the hackathon. Everything runs on the Azure toolbox (IoT Hub, Functions, Maps) plus Open-Meteo for the weather.
 

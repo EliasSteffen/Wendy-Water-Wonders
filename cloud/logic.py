@@ -1,4 +1,4 @@
-"""Risk logic for Wendy's Water Wonder.
+"""Risk logic for Wendy Water Wonders.
 
 Pure functions only (no Azure calls), so they can be tested locally:
     python -c "import logic; print(logic.demo())"

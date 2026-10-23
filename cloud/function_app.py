@@ -1,4 +1,4 @@
-"""Azure Functions (Python v2 model) for Wendy's Water Wonder.
+"""Azure Functions (Python v2 model) for Wendy Water Wonders.
 
 Endpoints / triggers
   ingest        IoT Hub trigger: stores readings, re-assesses, sends alerts
@@ -190,7 +190,7 @@ def _send_email(text):
             "senderAddress": sender,
             "recipients": {"to": [{"address": a.strip()} for a in to.split(",") if a.strip()]},
             "content": {
-                "subject": f"[Wendy's Water Wonder] {lines[0][:100] if lines else 'Alert'}",
+                "subject": f"[Wendy Water Wonders] {lines[0][:100] if lines else 'Alert'}",
                 "plainText": text,
                 "html": "<div style='font-family:Segoe UI,Arial,sans-serif;font-size:15px'>"
                 + "<br>".join(html.escape(line) for line in lines)
@@ -542,10 +542,10 @@ def map_page(req: func.HttpRequest) -> func.HttpResponse:
 def testalert(req: func.HttpRequest) -> func.HttpResponse:
     """Sends one test message over all channels and reports what happened per channel."""
     status = _notify(
-        "TEST ALERT from Wendy's Water Wonder.\n"
+        "TEST ALERT from Wendy Water Wonders.\n"
         "If you can read this, this channel works.\n"
         f"Sent {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC",
-        sms="TEST from Wendy's Water Wonder: SMS works.",
+        sms="TEST from Wendy Water Wonders: SMS works.",
         urgent=True,
     )
     return _json(status)
