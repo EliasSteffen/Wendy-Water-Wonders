@@ -1,6 +1,7 @@
 ---
 import Base from "../layouts/Base.astro";
 import AnimationPlayer from "../components/AnimationPlayer";
+import Hero from "../components/Hero";
 import CoverageMap from "../components/CoverageMap.astro";
 import DashboardDemo from "../components/DashboardDemo";
 import { REPO_URL, TEAM, repoFile, withBase } from "../data/site";
@@ -27,28 +28,15 @@ const description =
   </header>
 
   <main id="top">
-    <section class="hero">
-      <div class="wrap hero-grid">
-        <div>
-          <p class="eyebrow">Hackathon prototype · BCG Platinion · Fighting World Hunger 2026</p>
-          <h1>Wendy's Water Wonder</h1>
-          <p class="lead">A low-cost station at the well measures the water, warns people on site and tells the right people what to do, even where the mobile network is patchy.</p>
-          <div class="buttons">
-            <a class="btn primary" href="#station">See how it works</a>
-            <a class="btn" href={REPO_URL}>Code on GitHub</a>
-          </div>
-        </div>
-        <div class="hero-media">
-          <img
-            src={withBase("og.jpg")}
-            width="1280"
-            height="720"
-            alt="The station: a Raspberry Pi with a breadboard, three water sensors and status lights; a water sample has turned the red light on."
-          />
-        </div>
-        <p class="notice">Built in two days. This is not a certified water-testing device, and all limits are placeholders until they are agreed with water experts.</p>
-      </div>
-    </section>
+    <Hero
+      client:load
+      title={title}
+      lead="A low-cost station at the well measures the water, warns people on site and tells the right people what to do, even where the mobile network is patchy."
+      image={withBase("og.jpg")}
+      imageAlt="The station: a Raspberry Pi with a breadboard, three water sensors and status lights; a water sample has turned the red light on."
+      repoUrl={REPO_URL}
+    />
+    <p class="wrap notice">Built in two days. This is not a certified water-testing device, and all limits are placeholders until they are agreed with water experts.</p>
 
     <section id="problem">
       <div class="wrap">

@@ -151,3 +151,67 @@ td:first-child { white-space: nowrap; }
 .team li { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 10px 18px; font-weight: 600; }
 .team a { text-decoration: none; }
 .site-footer { padding: 40px 0 56px; border-top: 1px solid var(--line); color: var(--faint); font-size: 15px; }
+
+/* ---------------------------------------------------------------- hero (Aceternity-style) */
+:root { --spot: #93c5fd; --aurora-1: #2563eb; --aurora-2: #14b8a6; --aurora-3: #a855f7; --aurora-opacity: 0.45; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { --spot: #60a5fa; --aurora-opacity: 0.28; }
+}
+.hero2 { position: relative; overflow: hidden; padding: 96px 0 72px; border-top: 0; isolation: isolate; }
+.aurora {
+  position: absolute; inset: -20% -10% auto; height: 760px; z-index: -1; opacity: var(--aurora-opacity);
+  background:
+    radial-gradient(40% 50% at 20% 30%, var(--aurora-1), transparent 70%),
+    radial-gradient(35% 45% at 70% 20%, var(--aurora-2), transparent 70%),
+    radial-gradient(30% 40% at 50% 60%, var(--aurora-3), transparent 70%);
+  filter: blur(60px);
+  animation: aurora 18s ease-in-out infinite alternate;
+  mask-image: linear-gradient(to bottom, #000 40%, transparent);
+}
+@keyframes aurora {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+  50% { transform: translate3d(4%, -3%, 0) rotate(6deg) scale(1.08); }
+  100% { transform: translate3d(-4%, 2%, 0) rotate(-4deg) scale(1.02); }
+}
+.spotlight { position: absolute; top: -40%; left: -10%; width: 140%; height: 170%; z-index: -1; pointer-events: none; }
+.hero2-inner { text-align: center; }
+.pill {
+  display: inline-block; margin: 0 0 24px; padding: 8px 18px; border-radius: 999px; font-size: 14px; font-weight: 700;
+  letter-spacing: 0.06em; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.hero2-title { font-size: clamp(48px, 8.5vw, 104px); font-weight: 800; letter-spacing: -0.04em; line-height: 1.02; margin: 0 0 22px; }
+/* The gradient sits on each word: the words have their own filter while they fade in,
+   and background-clip: text on the parent would not paint into them */
+.hero2-title span {
+  display: inline-block; padding-bottom: 0.06em;
+  background: linear-gradient(180deg, var(--text) 30%, color-mix(in srgb, var(--text) 55%, var(--accent)));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.hero2-lead { margin-inline: auto; }
+.hero2-buttons { justify-content: center; }
+.btn.ghost { background: transparent; }
+.btn.shimmer {
+  background: linear-gradient(110deg, var(--accent) 40%, color-mix(in srgb, var(--accent) 55%, #fff) 50%, var(--accent) 60%);
+  background-size: 250% 100%; animation: shimmer 3.5s linear infinite;
+}
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+.hero2-chips { list-style: none; padding: 0; margin: 28px 0 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.hero2-chips li {
+  display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; font-size: 15px; font-weight: 600;
+  color: var(--muted); background: color-mix(in srgb, var(--card) 80%, transparent); border: 1px solid var(--line); backdrop-filter: blur(6px);
+}
+.hero2-chips span { width: 9px; height: 9px; border-radius: 50%; }
+.scroll-card-stage { perspective: 1200px; margin-top: 56px; }
+.scroll-card {
+  transform-origin: center top; border-radius: 24px; padding: 10px; background: color-mix(in srgb, var(--card) 70%, transparent);
+  border: 1px solid var(--line); box-shadow: 0 40px 120px -30px color-mix(in srgb, var(--accent) 45%, transparent), var(--shadow);
+}
+.scroll-card img { display: block; width: 100%; height: auto; border-radius: 16px; }
+.reveal { animation: reveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.reveal.blur { animation-name: reveal-blur; }
+@keyframes reveal { from { opacity: 0; transform: translateY(14px); } }
+@keyframes reveal-blur { from { opacity: 0; filter: blur(10px); transform: translateY(10px); } }
+.spotlight ellipse { animation: spotlight 2s 0.3s ease-out both; }
+@keyframes spotlight { from { opacity: 0; transform: translate(-120px, -80px); } }
+@media (prefers-reduced-motion: reduce) { .aurora, .btn.shimmer, .reveal, .spotlight ellipse { animation: none; } }

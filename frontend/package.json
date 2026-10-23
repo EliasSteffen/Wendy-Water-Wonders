@@ -17,6 +17,7 @@
     "@remotion/google-fonts": "4.0.530",
     "@remotion/player": "4.0.530",
     "astro": "7.3.8",
+    "motion": "14.1.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "remotion": "4.0.530"
