@@ -54,7 +54,7 @@ const CAPTIONS: Partial<Record<string, CaptionSpec>> = {
   parts: {
     kind: "info",
     title: "What you need",
-    body: "Raspberry Pi 5 · half-size breadboard · MCP3008 chip · TDS board · turbidity board · 10 kΩ + 20 kΩ resistors · jumper wires",
+    body: "Raspberry Pi 5 · half-size breadboard · MCP3008 chip · TDS board · turbidity board · pH board + probe · 10 kΩ + 20 kΩ resistors · jumper wires",
   },
   safety: {
     kind: "warn",
@@ -122,6 +122,13 @@ const CAPTIONS: Partial<Record<string, CaptionSpec>> = {
     body: "{gnd:20 kΩ: node → − rail}  {turb:10 kΩ: node → OUT column}  {turb:jumper: node → CH1}  {turb:plug OUT in last}",
     reveal: [sec(0.8), sec(2.4), sec(4.2), sec(6.4)],
   },
+  ph: {
+    kind: "num",
+    badge: "9",
+    title: "pH meter into CH2",
+    body: "{v33:pH +} → bottom + rail  {gnd:pH −} → bottom − rail  {ph:pH A} → CH2, no resistors  then the BNC probe",
+    reveal: [sec(0.6), sec(1.9), sec(3.2), sec(5.0)],
+  },
   measure: {
     kind: "check",
     title: "Measure before you trust it",
@@ -130,7 +137,7 @@ const CAPTIONS: Partial<Record<string, CaptionSpec>> = {
   done: {
     kind: "star",
     title: "All wired!",
-    body: "{tds:CH0 = TDS}  {turb:CH1 = turbidity}   read both from Python with gpiozero (cheat-sheet on the right)",
+    body: "{tds:CH0 = TDS}  {turb:CH1 = turbidity}  {ph:CH2 = pH}   read them from Python with gpiozero (cheat-sheet on the right)",
   },
 };
 
@@ -412,6 +419,7 @@ export const TitleCard: React.FC = () => {
     { t: "MCP3008 ADC", c: "#60a5fa" },
     { t: "TDS sensor", c: COLORS.tds },
     { t: "Turbidity sensor", c: COLORS.turb },
+    { t: "pH sensor", c: COLORS.ph },
   ];
   return (
     <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", opacity: out, fontFamily: SANS }}>
@@ -449,7 +457,7 @@ export const TitleCard: React.FC = () => {
         >
           Raspberry Pi 5 + MCP3008 + 2 water sensors
         </div>
-        <div style={{ ...up(a(20)), fontSize: 26, color: "#a9b7cb", marginTop: 20 }}>Step by step on a breadboard · about 90 seconds</div>
+        <div style={{ ...up(a(20)), fontSize: 26, color: "#a9b7cb", marginTop: 20 }}>Step by step on a breadboard · about 100 seconds</div>
         <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 44 }}>
           {chips.map((c, i) => (
             <div
@@ -841,8 +849,8 @@ export const Multimeter: React.FC<{ frame: number; fps: number }> = ({ frame, fp
 export type SummaryRow = { color: string; from: string; to: string };
 
 const SUMMARY: SummaryRow[] = [
-  { color: COLORS.v33, from: "Pi 1 · 3.3 V", to: "+ rails → VDD 16, VREF 15, TDS VCC" },
-  { color: COLORS.gndUi, from: "Pi 6 · GND", to: "− rails → AGND 14, DGND 9, both sensors" },
+  { color: COLORS.v33, from: "Pi 1 · 3.3 V", to: "+ rails → VDD 16, VREF 15, TDS and pH +" },
+  { color: COLORS.gndUi, from: "Pi 6 · GND", to: "− rails → AGND 14, DGND 9, all sensors" },
   { color: COLORS.sclk, from: "Pi 23 · SCLK", to: "CLK 13" },
   { color: COLORS.miso, from: "Pi 21 · MISO", to: "DOUT 12" },
   { color: COLORS.mosi, from: "Pi 19 · MOSI", to: "DIN 11" },
@@ -850,15 +858,18 @@ const SUMMARY: SummaryRow[] = [
   { color: COLORS.v5, from: "Pi 2 · 5 V", to: "Turbidity VCC (direct)" },
   { color: COLORS.tds, from: "TDS A", to: "CH0 · chip pin 1" },
   { color: COLORS.turb, from: "Turbidity OUT", to: "10k → CH1 (pin 2), 20k → GND" },
+  { color: COLORS.ph, from: "pH A", to: "CH2 · chip pin 3, no resistors" },
 ];
 
 const CODE = `from gpiozero import MCP3008
 
 tds  = MCP3008(channel=0)
 turb = MCP3008(channel=1)
+ph   = MCP3008(channel=2)
 
 v_tds  = tds.value  * 3.3
-v_turb = turb.value * 3.3 * 1.5`;
+v_turb = turb.value * 3.3 * 1.5
+v_ph   = ph.value   * 3.3`;
 
 export const SummaryCard: React.FC<{ title?: string; rows?: SummaryRow[]; code?: string }> = ({
   title = "Wiring cheat-sheet",

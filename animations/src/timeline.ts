@@ -18,6 +18,7 @@ export type StepId =
   | "tds"
   | "turbpower"
   | "divider"
+  | "ph"
   | "measure"
   | "done";
 
@@ -34,13 +35,14 @@ const RAW: [StepId, number, number][] = [
   ["tds", 57, 65],
   ["turbpower", 65, 74],
   ["divider", 74, 85],
-  ["measure", 85, 91],
-  ["done", 91, 100],
+  ["ph", 85, 93],
+  ["measure", 93, 99],
+  ["done", 99, 108],
 ];
 
 export const STEPS = RAW.map(([id, a, b]) => ({ id, from: sec(a), to: sec(b) }));
-export const TOTAL_FRAMES = sec(100);
-export const NUMBERED: StepId[] = ["chip", "rails", "bridge", "chippower", "spi", "tds", "turbpower", "divider"];
+export const TOTAL_FRAMES = sec(108);
+export const NUMBERED: StepId[] = ["chip", "rails", "bridge", "chippower", "spi", "tds", "turbpower", "divider", "ph"];
 
 export const stepAt = (f: number): StepId =>
   (STEPS.find((s) => f >= s.from && f < s.to) ?? STEPS[STEPS.length - 1]).id;
@@ -55,7 +57,7 @@ export const env = (f: number, from: number, to: number, fadeIn = 10, fadeOut = 
 
 export const POWER_WINDOWS = [
   { on: sec(51.4), off: sec(55.8), end: sec(57) },
-  { on: sec(85.5), off: sec(90.6), end: sec(91.2) },
+  { on: sec(93.5), off: sec(98.6), end: sec(99.2) },
 ];
 export const powerOn = (f: number) => POWER_WINDOWS.some((w) => f >= w.on && f < w.off);
 
@@ -82,7 +84,10 @@ const SHOTS: Shot[] = [
   shot(67.2, 960, 455, 1.0, 1.0),
   shot(71.6, 1290, 630, 1.7, 0.9),
   shot(74, 1180, 500, 2.0),
-  shot(91, 1354, 462, 0.7, 1.4),
+  shot(85, 1040, 650, 1.6),
+  shot(89.8, 1380, 560, 1.0, 1.0),
+  shot(93, 1180, 500, 2.0, 1.0),
+  shot(99, 1354, 462, 0.7, 1.4),
 ];
 
 export type Camera = { cx: number; cy: number; z: number };

@@ -264,12 +264,14 @@ export const CHIP_EVENTS: ChipEvent[] = [
   ev(10, COLORS.ce0, 49.0, 46.7, 49.0),
   ev(1, COLORS.tds, 62.8, 61.0, 64.6),
   ev(2, COLORS.turb, 79.6, 78.0, 82.0),
+  ev(3, COLORS.ph, 89.6, 88.2, 90.6),
 ];
 export const CARD_WINDOWS: [number, number][] = [
   [sec(12.8), sec(18)],
   [sec(31), sec(50)],
   [sec(57), sec(65)],
   [sec(74), sec(85)],
+  [sec(88), sec(90.8)],
 ];
 
 // Probe cables from the boards to the probes in the beaker (decorative).
