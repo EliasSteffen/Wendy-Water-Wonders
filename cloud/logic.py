@@ -1,4 +1,4 @@
-"""Risk logic for Wendy's Early Signal.
+"""Risk logic for Wendy's Water Wonder.
 
 Pure functions only (no Azure calls), so they can be tested locally:
     python -c "import logic; print(logic.demo())"
@@ -6,11 +6,14 @@ Pure functions only (no Azure calls), so they can be tested locally:
 All thresholds and weights below are PLACEHOLDERS for the prototype.
 Agree real values with WHH before using this anywhere outside a demo.
 """
+
 import json
 import math
 import re
 import os
 from datetime import datetime, timezone
+
+import forecast
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(HERE, "points.json"), encoding="utf-8") as f:
@@ -20,24 +23,29 @@ with open(os.path.join(HERE, "points.json"), encoding="utf-8") as f:
 def _load_limits():
     """shared/limits.json in the repo, or the copy deployed next to this file."""
     here = os.path.dirname(os.path.abspath(__file__))
-    for path in (os.path.join(here, "limits.json"), os.path.join(here, "..", "shared", "limits.json")):
+    for path in (
+        os.path.join(here, "limits.json"),
+        os.path.join(here, "..", "shared", "limits.json"),
+    ):
         if os.path.exists(path):
             with open(path, encoding="utf-8") as f:
                 return json.load(f)
     raise FileNotFoundError(f"limits.json not found: copy shared/limits.json next to {__file__}")
 
 
-LIMITS = _load_limits()   # shared with the Pi's lights
+LIMITS = _load_limits()  # shared with the Pi's lights
 
 # No "green": "none" means "no anomaly measured", never "safe".
 LEVELS = ["none", "yellow", "red"]
 
 # --- Salt (measured directly via conductivity) ---------------------------
-EC_TO_TDS = 0.5            # TDS [mg/L] ~ 0.5-0.7 x EC [uS/cm]; 0.5 matches the Pi (DFRobot method)
-TDS_YELLOW = LIMITS["tds_ppm"]["yellow"]              # getting salty / watch
-TDS_HUMAN_LIMIT = LIMITS["tds_ppm"]["red"]            # above: people should avoid it (placeholder, agree with WHH)
+EC_TO_TDS = 0.5  # TDS [mg/L] ~ 0.5-0.7 x EC [uS/cm]; 0.5 matches the Pi (DFRobot method)
+TDS_YELLOW = LIMITS["tds_ppm"]["yellow"]  # getting salty / watch
+TDS_HUMAN_LIMIT = LIMITS["tds_ppm"][
+    "red"
+]  # above: people should avoid it (placeholder, agree with WHH)
 TDS_LIVESTOCK_LIMIT = LIMITS["tds_ppm"]["livestock_red"]  # above: not even for livestock
-SALT_RISING_RATIO = 1.15   # EC 15 % above its slow average -> "rising"
+SALT_RISING_RATIO = 1.15  # EC 15 % above its slow average -> "rising"
 
 # --- Germs (risk model, NOT a measurement) -------------------------------
 SOURCE_RISK = {"borehole": 0.0, "shallow_well": 0.7, "open_pan": 1.4}
@@ -45,10 +53,13 @@ GERM_YELLOW = 0.30
 GERM_RED = 0.60
 
 # --- pH (measured at the real station; same range as the station LEDs) ---
-PH_OK = (LIMITS["ph"]["min"], LIMITS["ph"]["max"])   # WHO operational range; outside -> watch (yellow)
+PH_OK = (
+    LIMITS["ph"]["min"],
+    LIMITS["ph"]["max"],
+)  # WHO operational range; outside -> watch (yellow)
 
-MAX_ALT_KM = 15            # do not send people further than this
-MAX_DATA_AGE_H = 7 * 24    # alternatives need data newer than this
+MAX_ALT_KM = 15  # do not send people further than this
+MAX_DATA_AGE_H = 7 * 24  # alternatives need data newer than this
 
 
 def _sigmoid(z):
@@ -75,12 +86,12 @@ def haversine_km(a, b):
 # -------------------------------------------------------------------------
 # State update from one sensor reading
 # -------------------------------------------------------------------------
-FIELD_ALIASES = {            # Pi uploader field names -> internal names
+FIELD_ALIASES = {  # Pi uploader field names -> internal names
     "ec_us_cm": "ec_us",
     "turbidity_ntu": "turb_ntu",
     "water_temp_c": "temp_c",
 }
-MIN_VALID_EC = 5.0           # below this the TDS probe is out of the water
+MIN_VALID_EC = 5.0  # below this the TDS probe is out of the water
 
 
 def normalize_reading(r):
@@ -126,13 +137,27 @@ def update_state(state, reading, point):
 def assess(point, st, weather, now=None):
     now = now or datetime.now(timezone.utc)
     out = {
-        "id": point["id"], "name": point["name"], "lat": point["lat"], "lon": point["lon"],
-        "people": point["people"], "source_type": point["source_type"],
-        "level": "none", "salt": "none", "germs": "none", "p_germs": 0.0,
-        "tds": None, "use": "unknown", "reasons": [], "advice": [],
-        "data_age_h": None, "no_data": False, "salt_trend": "unknown",
-        "turb": st.get("turb_last"), "ph": st.get("ph"),
-        "has_turb": "turb_last" in st, "has_ph": "ph" in st,
+        "id": point["id"],
+        "name": point["name"],
+        "lat": point["lat"],
+        "lon": point["lon"],
+        "people": point["people"],
+        "source_type": point["source_type"],
+        "level": "none",
+        "salt": "none",
+        "germs": "none",
+        "p_germs": 0.0,
+        "tds": None,
+        "use": "unknown",
+        "reasons": [],
+        "advice": [],
+        "data_age_h": None,
+        "no_data": False,
+        "salt_trend": "unknown",
+        "turb": st.get("turb_last"),
+        "ph": st.get("ph"),
+        "has_turb": "turb_last" in st,
+        "has_ph": "ph" in st,
     }
     if "ec_us" not in st:
         out["no_data"] = True
@@ -173,13 +198,15 @@ def assess(point, st, weather, now=None):
     else:
         days_since_test = 60.0
 
-    z = (-3.0
-         + 1.2 * min(turb_delta, 3.0)
-         + 1.5 * first_flush
-         + 0.03 * min(rain72, 50.0)
-         + SOURCE_RISK.get(point["source_type"], 0.7)
-         + 0.8 * ec_jump
-         + 0.3 * min(days_since_test / 30.0, 2.0))
+    z = (
+        -3.0
+        + 1.2 * min(turb_delta, 3.0)
+        + 1.5 * first_flush
+        + 0.03 * min(rain72, 50.0)
+        + SOURCE_RISK.get(point["source_type"], 0.7)
+        + 0.8 * ec_jump
+        + 0.3 * min(days_since_test / 30.0, 2.0)
+    )
     p = _sigmoid(z)
 
     last_test = st.get("last_test") or {}
@@ -202,21 +229,31 @@ def assess(point, st, weather, now=None):
 
     # Pre-warning: heavy rain forecast after a long dry spell
     fc = float(weather.get("rain_forecast_48h", 0))
-    if (out["germs"] == "none" and fc >= 10 and weather.get("dry_days", 0) >= 14
-            and point["source_type"] != "borehole"):
+    if (
+        out["germs"] == "none"
+        and fc >= 10
+        and weather.get("dry_days", 0) >= 14
+        and point["source_type"] != "borehole"
+    ):
         out["germs"] = "yellow"
         out["reasons"].append("heavy rain forecast after dry spell")
 
     # ---- Advice ------------------------------------------------------------
     if out["salt"] == "red":
         out["advice"].append("Do NOT boil: boiling makes salty water worse.")
-        out["advice"].append("People: use another water point." if out["use"] == "livestock_only"
-                             else "Do not use. Report to Wendy.")
+        out["advice"].append(
+            "People: use another water point."
+            if out["use"] == "livestock_only"
+            else "Do not use. Report to Wendy."
+        )
         if out["use"] == "livestock_only":
             out["advice"].append("Livestock: this water can still be used.")
     if out["germs"] == "red":
-        out["advice"].append("Let water settle or filter it, then chlorinate." if turb_delta > 1
-                             else "Chlorinate or boil before drinking.")
+        out["advice"].append(
+            "Let water settle or filter it, then chlorinate."
+            if turb_delta > 1
+            else "Chlorinate or boil before drinking."
+        )
         out["advice"].append("Test this water point (H2S strip or bag test).")
     elif out["germs"] == "yellow":
         out["advice"].append("Test recommended at next visit.")
@@ -263,21 +300,58 @@ def add_alternatives(assessed):
     for a in assessed:
         a["alternative"] = None
         problem = "salt" if a["salt"] == "red" else ("germs" if a["germs"] == "red" else None)
-        if a.get("manual"):   # colour set by hand on the dashboard wins
+        if a.get("manual"):  # colour set by hand on the dashboard wins
             problem = (problem or "salt") if a["level"] == "red" else None
         if problem:
             a["alternative"] = best_alternative(a, assessed, problem)
             if a["alternative"] is None:
-                a["advice"].append("No alternative within reach: notify Wendy (e.g. water trucking).")
+                a["advice"].append(
+                    "No alternative within reach: notify Wendy (e.g. water trucking)."
+                )
     return assessed
 
 
+def assess_all(states, weather, real_devices, now=None):
+    """Everything the dashboard shows, from the stored state of each point. No Azure calls,
+    so the Function and cloud/export_demo_state.py use exactly the same rules."""
+    assessed = [assess(p, states.get(pid, {}), weather, now) for pid, p in POINTS.items()]
+    for a in assessed:
+        a["outlook"], a["outlook_level"] = forecast.outlook_for(POINTS[a["id"]], a, weather)
+        a["high_salt_streak"] = int(states.get(a["id"], {}).get("high_salt_streak", 0))
+        a["live"] = a["id"] in real_devices
+        ov = states.get(a["id"], {}).get("override")
+        if ov:  # colour set by hand on the dashboard (demo); no SMS is triggered by this
+            a["level"], a["manual"] = ov["level"], True
+            a["reasons"].insert(0, "set by hand on the dashboard")
+        elif not a["live"] and a["level"] == "red":
+            # Only the real station can raise a red warning; simulated points stay yellow
+            a["level"] = "yellow"
+        # "Getting worse fast": salt rising or bad outlook while still under the drinking limit
+        a["worsening"] = (
+            a["level"] == "yellow"
+            and (a["tds"] or 0) < TDS_HUMAN_LIMIT
+            and (a["salt_trend"] == "rising" or a["outlook_level"] == "red")
+        )
+    add_alternatives(assessed)
+    return {"points": assessed, "priorities": test_priorities(assessed)}
+
+
 def test_priorities(assessed, n=3):
-    ranked = sorted((a for a in assessed if not a["no_data"]),
-                    key=lambda a: a["p_germs"] * a["people"], reverse=True)
-    return [{"id": a["id"], "name": a["name"], "p_germs": a["p_germs"],
-             "people": a["people"], "why": ", ".join(a["reasons"]) or "routine"}
-            for a in ranked[:n]]
+    ranked = sorted(
+        (a for a in assessed if not a["no_data"]),
+        key=lambda a: a["p_germs"] * a["people"],
+        reverse=True,
+    )
+    return [
+        {
+            "id": a["id"],
+            "name": a["name"],
+            "p_germs": a["p_germs"],
+            "people": a["people"],
+            "why": ", ".join(a["reasons"]) or "routine",
+        }
+        for a in ranked[:n]
+    ]
 
 
 # -------------------------------------------------------------------------
@@ -288,14 +362,14 @@ def weather_features(days, precip, today=None):
     precip = [p or 0.0 for p in precip]
     today = today or datetime.now(timezone.utc).date().isoformat()
     i = days.index(today) if today in days else len(days) - 4
-    rain_72h = sum(precip[max(0, i - 2): i + 1])
+    rain_72h = sum(precip[max(0, i - 2) : i + 1])
     dry_days = 0
     for p in reversed(precip[: i + 1]):
         if p >= 1:
             break
         dry_days += 1
     dry_before = 0
-    for j in range(i, max(-1, i - 3), -1):          # heavy rain in last 3 days?
+    for j in range(i, max(-1, i - 3), -1):  # heavy rain in last 3 days?
         if precip[j] >= 10:
             for p in reversed(precip[:j]):
                 if p >= 1:
@@ -306,10 +380,12 @@ def weather_features(days, precip, today=None):
         "rain_72h": round(rain_72h, 1),
         "dry_days": dry_days,
         "dry_spell_before_rain": dry_before,
-        "rain_forecast_48h": round(sum(precip[i + 1: i + 3]), 1),
+        "rain_forecast_48h": round(sum(precip[i + 1 : i + 3]), 1),
         # daily rain of the 14 days before today, for the dashboard's rain view
-        "past": [{"date": d, "rain_mm": round(p, 1)}
-                 for d, p in zip(days[max(0, i - 14): i], precip[max(0, i - 14): i])],
+        "past": [
+            {"date": d, "rain_mm": round(p, 1)}
+            for d, p in zip(days[max(0, i - 14) : i], precip[max(0, i - 14) : i])
+        ],
         "updated": datetime.now(timezone.utc).isoformat(),
         "source": "open-meteo",
     }
@@ -322,8 +398,10 @@ def message_for(a):
     lines += a["advice"][:3]
     alt = a.get("alternative")
     if alt:
-        lines.append(f"Nearest alternative: {alt['id']} {alt['name']} ({alt['km']} km), "
-                     "no anomaly measured recently.")
+        lines.append(
+            f"Nearest alternative: {alt['id']} {alt['name']} ({alt['km']} km), "
+            "no anomaly measured recently."
+        )
     for o in (a.get("outlook") or [])[:1]:
         lines.append(f"Outlook: {o['message']}")
     return "\n".join(lines)
@@ -343,7 +421,7 @@ def sms_salt(a, alt=None):
 def sms_for(a):
     """Short SMS (fits one segment even with the Twilio trial prefix). Plain GSM characters only."""
     first = a["reasons"][0] if a["reasons"] else "check the water"
-    first = re.sub(r"\s*\(~?\d+ mg/L\)", "", first)        # no exact salt value in SMS
+    first = re.sub(r"\s*\(~?\d+ mg/L\)", "", first)  # no exact salt value in SMS
     s = f"WATER ALERT {a['id']}: {first}."
     if a["salt"] == "red":
         s += " Livestock ok. Do not boil." if a["use"] == "livestock_only" else " Do not use."
@@ -363,9 +441,14 @@ def open_meteo_forecast(days, precip, tmax, today=None, n=10):
     i = days.index(today) if today in days else 0
     out = []
     for j in range(i, min(i + n, len(days))):
-        out.append({"date": days[j], "rain_mm": round(precip[j] or 0.0, 1),
-                    "tmax": None if tmax is None or tmax[j] is None else round(tmax[j], 1),
-                    "p_rain": None})
+        out.append(
+            {
+                "date": days[j],
+                "rain_mm": round(precip[j] or 0.0, 1),
+                "tmax": None if tmax is None or tmax[j] is None else round(tmax[j], 1),
+                "p_rain": None,
+            }
+        )
     return out
 
 
@@ -374,11 +457,17 @@ def demo():
     weather = {"rain_72h": 0, "dry_days": 30, "dry_spell_before_rain": 0, "rain_forecast_48h": 0}
     states = {}
     for pid, p in POINTS.items():
-        r = {"point_id": pid, "ts": now.isoformat(), "ec_us": p["baseline_ec"],
-             "turb_ntu": p["baseline_turb"], "visits": 1}
+        r = {
+            "point_id": pid,
+            "ts": now.isoformat(),
+            "ec_us": p["baseline_ec"],
+            "turb_ntu": p["baseline_turb"],
+            "visits": 1,
+        }
         states[pid] = update_state({}, r, p)
     # salt event at wp07
-    states["wp07"] = update_state(states["wp07"], {"ts": now.isoformat(), "ec_us": 3000,
-                                                   "turb_ntu": 2.0}, POINTS["wp07"])
+    states["wp07"] = update_state(
+        states["wp07"], {"ts": now.isoformat(), "ec_us": 3000, "turb_ntu": 2.0}, POINTS["wp07"]
+    )
     assessed = add_alternatives([assess(POINTS[k], states[k], weather, now) for k in POINTS])
     return message_for(next(a for a in assessed if a["id"] == "wp07"))

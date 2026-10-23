@@ -57,7 +57,7 @@ The limits live in [`shared/limits.json`](shared/limits.json); the Pi, the cloud
 | [`shared/`](shared/)                   | What the Pi and the cloud agree on: the limits ([`limits.json`](shared/limits.json)) and the message formats ([`protocol/`](shared/protocol/)) |
 | [`simulator/`](simulator/)             | Simulates 13 more water points for the demo                                                                                                    |
 | [`geo/`](geo/)                         | Turkana map: water points and cell towers, built into GeoJSON for the website and the cloud                                                    |
-| [`frontend/`](frontend/)               | The project website (GitHub Pages)                                                                                                             |
+| [`frontend/`](frontend/)               | The project website (GitHub Pages): the animations, the map and a dashboard demo                                                                                                             |
 | [`animations/`](animations/)           | Remotion videos: wiring guides and how the station works                                                                                       |
 | [`docs/hardware.md`](docs/hardware.md) | Parts, wiring, formulas, calibration, lessons learned                                                                                          |
 
@@ -78,7 +78,8 @@ python3 pi/uploader.py --fake --dry-run --count 3 --no-leds
 
 - **Station:** parts and wiring in [`docs/hardware.md`](docs/hardware.md), setup on the Pi in [`pi/README.md`](pi/README.md).
 - **Cloud:** Azure setup, deployment, alerts and the demo flow in [`cloud/README.md`](cloud/README.md).
-- **Animations:** `cd animations && npm ci && npm run studio` to preview; `npm run render:station` and `npm run render:architecture` write the videos to `animations/out/`. After a new map build, `python3 geo/export_animation_data.py` refreshes the map in the architecture video.
+- **Website:** `npm install` once in the repo root, then `npm run dev --workspace frontend`. GitHub Pages publishes it on every push to `main` ([`frontend/README.md`](frontend/README.md)).
+- **Animations:** `npm run studio --workspace animations` to preview; `npm run render:station --workspace animations` and `npm run render:architecture --workspace animations` write the videos to `animations/out/`. After a new map build, `python3 geo/export_animation_data.py` refreshes the map in the architecture video.
 - **Turkana map:** `python3 geo/build_map.py`, then open `geo/dist/turkana-map.html`.
 
 ## What is real and what is a placeholder

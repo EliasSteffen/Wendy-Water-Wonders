@@ -1,4 +1,4 @@
-"""Azure Functions (Python v2 model) for Wendy's Early Signal.
+"""Azure Functions (Python v2 model) for Wendy's Water Wonder.
 
 Endpoints / triggers
   ingest        IoT Hub trigger: stores readings, re-assesses, sends alerts
@@ -14,6 +14,7 @@ Endpoints / triggers
                         salt trend and alert memory ("all" also ends the demo weather)
   POST /api/override    {"point_id":"wp05","level":"none|yellow|red"}  set a colour by hand (demo, no SMS)
 """
+
 import base64
 import hashlib
 import hmac
@@ -31,14 +32,15 @@ from datetime import datetime, timezone
 import azure.functions as func
 from azure.data.tables import TableServiceClient, UpdateMode
 
-import forecast
 import logic
 
 app = func.FunctionApp()
 
 TABLE_NAME = "wendystate"
-WEATHER_LAT, WEATHER_LON = 3.12, 35.60          # Lodwar, reference for all points
-REAL_DEVICES = [d.strip() for d in os.environ.get("REAL_DEVICE_IDS", "wp07").split(",") if d.strip()]
+WEATHER_LAT, WEATHER_LON = 3.12, 35.60  # Lodwar, reference for all points
+REAL_DEVICES = [
+    d.strip() for d in os.environ.get("REAL_DEVICE_IDS", "wp07").split(",") if d.strip()
+]
 
 
 # ---------------------------------------------------------------- storage --
@@ -55,8 +57,9 @@ def _get(tc, pk, rk):
 
 
 def _put(tc, pk, rk, data):
-    tc.upsert_entity({"PartitionKey": pk, "RowKey": rk, "data": json.dumps(data)},
-                     mode=UpdateMode.REPLACE)
+    tc.upsert_entity(
+        {"PartitionKey": pk, "RowKey": rk, "data": json.dumps(data)}, mode=UpdateMode.REPLACE
+    )
 
 
 def _weather(tc):
@@ -68,29 +71,16 @@ def _weather(tc):
 
 
 def _assess_all(tc):
-    states = {e["RowKey"]: json.loads(e.get("data", "{}"))
-              for e in tc.query_entities("PartitionKey eq 'point'")}
+    states = {
+        e["RowKey"]: json.loads(e.get("data", "{}"))
+        for e in tc.query_entities("PartitionKey eq 'point'")
+    }
     weather = _weather(tc)
-    assessed = [logic.assess(p, states.get(pid, {}), weather) for pid, p in logic.POINTS.items()]
-    for a in assessed:
-        a["outlook"], a["outlook_level"] = forecast.outlook_for(logic.POINTS[a["id"]], a, weather)
-        a["high_salt_streak"] = int(states.get(a["id"], {}).get("high_salt_streak", 0))
-        a["live"] = a["id"] in REAL_DEVICES
-        ov = states.get(a["id"], {}).get("override")
-        if ov:   # colour set by hand on the dashboard (demo); no SMS is triggered by this
-            a["level"], a["manual"] = ov["level"], True
-            a["reasons"].insert(0, "set by hand on the dashboard")
-        elif not a["live"] and a["level"] == "red":
-            # Only the real station can raise a red warning; simulated points stay yellow
-            a["level"] = "yellow"
-        # "Getting worse fast": salt rising or bad outlook while still under the drinking limit
-        a["worsening"] = (a["level"] == "yellow" and (a["tds"] or 0) < logic.TDS_HUMAN_LIMIT
-                          and (a["salt_trend"] == "rising" or a["outlook_level"] == "red"))
-    logic.add_alternatives(assessed)
-    return {"points": assessed,
-            "priorities": logic.test_priorities(assessed),
-            "weather": weather,
-            "generated": datetime.now(timezone.utc).isoformat()}
+    return {
+        **logic.assess_all(states, weather, REAL_DEVICES),
+        "weather": weather,
+        "generated": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 # ---------------------------------------------------------- notifications --
@@ -129,7 +119,8 @@ def _send_sms_acs(text, numbers):
     """SMS via Azure Communication Services with an alphanumeric sender ID (e.g. "WendyWater").
     Germany only supports dynamic alphanumeric sender IDs, no phone numbers."""
     try:
-        from azure.communication.sms import SmsClient   # imported lazily on purpose
+        from azure.communication.sms import SmsClient  # imported lazily on purpose
+
         client = SmsClient.from_connection_string(os.environ["ACS_CONNECTION_STRING"])
         results = client.send(from_=os.environ["ACS_SMS_FROM"], to=numbers, message=text)
         out = []
@@ -137,7 +128,9 @@ def _send_sms_acs(text, numbers):
             if r.successful:
                 out.append(f"{r.to}: sent (azure)")
             else:
-                logging.error("ACS SMS to %s failed: %s %s", r.to, r.http_status_code, r.error_message)
+                logging.error(
+                    "ACS SMS to %s failed: %s %s", r.to, r.http_status_code, r.error_message
+                )
                 out.append(f"{r.to}: error {r.http_status_code} {r.error_message}")
         return "; ".join(out)
     except Exception as e:
@@ -151,7 +144,11 @@ def _send_sms(text):
     text = _wells(text)
     to = os.environ.get("ALERT_SMS_TO")
     use_acs = bool(os.environ.get("ACS_SMS_FROM") and os.environ.get("ACS_CONNECTION_STRING"))
-    sid, tok, frm = os.environ.get("TWILIO_SID"), os.environ.get("TWILIO_TOKEN"), os.environ.get("TWILIO_FROM")
+    sid, tok, frm = (
+        os.environ.get("TWILIO_SID"),
+        os.environ.get("TWILIO_TOKEN"),
+        os.environ.get("TWILIO_FROM"),
+    )
     if not to or not (use_acs or all((sid, tok, frm))):
         return "not configured"
     numbers = [n.strip() for n in to.split(",") if n.strip()]
@@ -164,8 +161,10 @@ def _send_sms(text):
     for number in numbers:
         data = urllib.parse.urlencode({"To": number, "From": frm, "Body": text[:1500]}).encode()
         req = urllib.request.Request(
-            f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json", data=data,
-            headers={"Authorization": f"Basic {auth}"})
+            f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json",
+            data=data,
+            headers={"Authorization": f"Basic {auth}"},
+        )
         try:
             urllib.request.urlopen(req, timeout=10)
             results.append(f"{number}: sent")
@@ -183,20 +182,22 @@ def _send_email(text):
     if not all((conn, sender, to)):
         return "not configured"
     try:
-        from azure.communication.email import EmailClient   # imported lazily on purpose
+        from azure.communication.email import EmailClient  # imported lazily on purpose
+
         client = EmailClient.from_connection_string(conn)
         lines = text.splitlines()
         message = {
             "senderAddress": sender,
             "recipients": {"to": [{"address": a.strip()} for a in to.split(",") if a.strip()]},
             "content": {
-                "subject": f"[Wendy's Early Signal] {lines[0][:100] if lines else 'Alert'}",
+                "subject": f"[Wendy's Water Wonder] {lines[0][:100] if lines else 'Alert'}",
                 "plainText": text,
                 "html": "<div style='font-family:Segoe UI,Arial,sans-serif;font-size:15px'>"
-                        + "<br>".join(html.escape(line) for line in lines) + "</div>",
+                + "<br>".join(html.escape(line) for line in lines)
+                + "</div>",
             },
         }
-        client.begin_send(message)   # the request is sent here; no need to wait for the poller
+        client.begin_send(message)  # the request is sent here; no need to wait for the poller
         return "sent"
     except Exception as e:
         logging.error("Email failed: %s", e)
@@ -211,7 +212,9 @@ def _send_telegram(text):
         return "not configured"
     data = urllib.parse.urlencode({"chat_id": chat, "text": text}).encode()
     try:
-        urllib.request.urlopen(f"https://api.telegram.org/bot{tok}/sendMessage", data=data, timeout=10)
+        urllib.request.urlopen(
+            f"https://api.telegram.org/bot{tok}/sendMessage", data=data, timeout=10
+        )
         return "sent"
     except Exception as e:
         logging.error("Telegram failed: %s", _http_error(e))
@@ -222,8 +225,11 @@ def _notify(text, sms=None, urgent=True):
     """Send the alert over every configured channel (redundancy).
     SMS gets a short version and is only used for urgent (red) alerts."""
     logging.info("ALERT (urgent=%s):\n%s", urgent, text)
-    return {"sms": _send_sms(sms or text[:150]) if urgent else "skipped (not urgent)",
-            "email": _send_email(text), "telegram": _send_telegram(text)}
+    return {
+        "sms": _send_sms(sms or text[:150]) if urgent else "skipped (not urgent)",
+        "email": _send_email(text),
+        "telegram": _send_telegram(text),
+    }
 
 
 # ------------------------------------------------------------ device twin --
@@ -236,13 +242,16 @@ def _update_twin(device_id, desired):
     host, key_name, key = parts["HostName"], parts["SharedAccessKeyName"], parts["SharedAccessKey"]
     expiry = int(time.time()) + 3600
     uri = urllib.parse.quote_plus(host)
-    sig = base64.b64encode(hmac.new(base64.b64decode(key), f"{uri}\n{expiry}".encode(),
-                                    hashlib.sha256).digest())
+    sig = base64.b64encode(
+        hmac.new(base64.b64decode(key), f"{uri}\n{expiry}".encode(), hashlib.sha256).digest()
+    )
     token = f"SharedAccessSignature sr={uri}&sig={urllib.parse.quote_plus(sig)}&se={expiry}&skn={key_name}"
     req = urllib.request.Request(
         f"https://{host}/twins/{device_id}?api-version=2021-04-12",
-        data=json.dumps({"properties": {"desired": desired}}).encode(), method="PATCH",
-        headers={"Authorization": token, "Content-Type": "application/json", "If-Match": "*"})
+        data=json.dumps({"properties": {"desired": desired}}).encode(),
+        method="PATCH",
+        headers={"Authorization": token, "Content-Type": "application/json", "If-Match": "*"},
+    )
     try:
         urllib.request.urlopen(req, timeout=10)
         return True
@@ -255,11 +264,11 @@ def _update_twin(device_id, desired):
 # SMS only when salt is really high, confirmed by several readings in a row, and
 # (by default) only for the real station. Everything else goes by e-mail/Telegram.
 def _sms_salt_min():
-    return float(os.environ.get("SMS_SALT_MIN_TDS", "800"))      # ppm (mg/L)
+    return float(os.environ.get("SMS_SALT_MIN_TDS", "800"))  # ppm (mg/L)
 
 
 def _sms_confirm():
-    return max(1, int(os.environ.get("SMS_SALT_CONFIRM", "2")))     # readings in a row
+    return max(1, int(os.environ.get("SMS_SALT_CONFIRM", "2")))  # readings in a row
 
 
 def _sms_points():
@@ -269,17 +278,21 @@ def _sms_points():
 
 def _sms_condition(a):
     pts = _sms_points()
-    return (not a["no_data"]
-            and (a["tds"] or 0) >= _sms_salt_min()
-            and a.get("high_salt_streak", 0) >= _sms_confirm()
-            and (pts is None or a["id"] in pts))
+    return (
+        not a["no_data"]
+        and (a["tds"] or 0) >= _sms_salt_min()
+        and a.get("high_salt_streak", 0) >= _sms_confirm()
+        and (pts is None or a["id"] in pts)
+    )
 
 
 def _manual_leds(a):
     if not a.get("manual"):
         return {}
-    return {"salt": "red" if a["level"] == "red" else "none",
-            "germs": "yellow" if a["level"] == "yellow" else "none"}
+    return {
+        "salt": "red" if a["level"] == "red" else "none",
+        "germs": "yellow" if a["level"] == "yellow" else "none",
+    }
 
 
 def _refresh_and_notify(tc):
@@ -289,33 +302,42 @@ def _refresh_and_notify(tc):
     escalated_points = []
     for a in result["points"]:
         prev = _get(tc, "notify", a["id"])
-        cur = {"level": a["level"], "salt": a["salt"], "germs": a["germs"],
-               "outlook": a["outlook_level"], "alt": (a["alternative"] or {}).get("id"),
-               "sms_salt": _sms_condition(a)}
+        cur = {
+            "level": a["level"],
+            "salt": a["salt"],
+            "germs": a["germs"],
+            "outlook": a["outlook_level"],
+            "alt": (a["alternative"] or {}).get("id"),
+            "sms_salt": _sms_condition(a),
+        }
         first_time = not prev
         # SMS once when the high-salt condition starts (re-armed when it ends)
         if cur["sms_salt"] and not prev.get("sms_salt") and not first_time:
             alt = a["alternative"] or logic.best_alternative(a, result["points"], "salt")
             logging.info("High salt at %s -> SMS: %s", a["id"], _send_sms(logic.sms_salt(a, alt)))
-        escalated = (not first_time and (
-            logic.LEVELS.index(a["salt"]) > logic.LEVELS.index(prev.get("salt", "none")) or
-            logic.LEVELS.index(a["germs"]) > logic.LEVELS.index(prev.get("germs", "none")) or
-            (a["outlook_level"] == "red" and prev.get("outlook", "none") != "red")))
+        escalated = not first_time and (
+            logic.LEVELS.index(a["salt"]) > logic.LEVELS.index(prev.get("salt", "none"))
+            or logic.LEVELS.index(a["germs"]) > logic.LEVELS.index(prev.get("germs", "none"))
+            or (a["outlook_level"] == "red" and prev.get("outlook", "none") != "red")
+        )
         if escalated and (a["level"] in ("yellow", "red") or a["outlook_level"] == "red"):
             escalated_points.append(a)
         if a["id"] in REAL_DEVICES and (first_time or cur != prev):
-            _update_twin(a["id"], {
-                "alternative": a["alternative"],
-                "use": a["use"],
-                "salt": a["salt"],          # the Pi's LEDs: salt red -> red, germ risk -> yellow
-                "germs": a["germs"],
-                **_manual_leds(a),          # colour set by hand on the dashboard drives the LEDs too
-                "level": a["level"],
-                "advice": a["advice"][:3],
-                "rain_forecast_48h": weather.get("rain_forecast_48h", 0),
-                "dry_days": weather.get("dry_days", 0),
-                "updated": result["generated"],
-            })
+            _update_twin(
+                a["id"],
+                {
+                    "alternative": a["alternative"],
+                    "use": a["use"],
+                    "salt": a["salt"],  # the Pi's LEDs: salt red -> red, germ risk -> yellow
+                    "germs": a["germs"],
+                    **_manual_leds(a),  # colour set by hand on the dashboard drives the LEDs too
+                    "level": a["level"],
+                    "advice": a["advice"][:3],
+                    "rain_forecast_48h": weather.get("rain_forecast_48h", 0),
+                    "dry_days": weather.get("dry_days", 0),
+                    "updated": result["generated"],
+                },
+            )
         if first_time or cur != prev:
             _put(tc, "notify", a["id"], cur)
 
@@ -329,17 +351,23 @@ def _refresh_and_notify(tc):
         yellow = [a["id"] for a in escalated_points if a["level"] == "yellow"]
         outlook = [a["id"] for a in escalated_points if a["outlook_level"] == "red"]
         prio = ", ".join(p["id"] for p in result["priorities"])
-        _notify(f"WATER ALERT: {len(escalated_points)} water points changed.\n"
-                f"Warning: {', '.join(red) or '-'}\nWatch: {', '.join(yellow) or '-'}\n"
-                f"Getting worse soon: {', '.join(outlook) or '-'}\n"
-                f"Test today: {prio}",
-                urgent=False)
+        _notify(
+            f"WATER ALERT: {len(escalated_points)} water points changed.\n"
+            f"Warning: {', '.join(red) or '-'}\nWatch: {', '.join(yellow) or '-'}\n"
+            f"Getting worse soon: {', '.join(outlook) or '-'}\n"
+            f"Test today: {prio}",
+            urgent=False,
+        )
     return result
 
 
 # ----------------------------------------------------------------- ingest --
-@app.event_hub_message_trigger(arg_name="event", event_hub_name="%IOTHUB_EH_NAME%",
-                               connection="IOTHUB_EH_CONN", consumer_group="functions")
+@app.event_hub_message_trigger(
+    arg_name="event",
+    event_hub_name="%IOTHUB_EH_NAME%",
+    connection="IOTHUB_EH_CONN",
+    consumer_group="functions",
+)
 def ingest(event: func.EventHubEvent):
     try:
         body = json.loads(event.get_body().decode("utf-8"))
@@ -383,7 +411,7 @@ def _put_history(tc, pid, st):
         "tds": int(round(st["ec_us"] * logic.EC_TO_TDS)),
         "turb_ntu": float(st.get("turb_ntu", 0)),
     }
-    for k in ("turb_last", "ph"):         # raw sensor values for the chart; missing = not measured
+    for k in ("turb_last", "ph"):  # raw sensor values for the chart; missing = not measured
         if st.get(k) is not None:
             row[k] = float(st[k])
     tc.upsert_entity(row, mode=UpdateMode.REPLACE)
@@ -400,16 +428,32 @@ def history(req: func.HttpRequest) -> func.HttpResponse:
         n = 150
     rows = []
     for e in _table().query_entities(f"PartitionKey eq 'hist_{pid}'", results_per_page=n):
-        rows.append({"ts": e["ts"], "tds": e["tds"], "ec_us": e["ec_us"], "turb_ntu": e["turb_ntu"],
-                     "turb": e.get("turb_last"), "ph": e.get("ph")})
+        rows.append(
+            {
+                "ts": e["ts"],
+                "tds": e["tds"],
+                "ec_us": e["ec_us"],
+                "turb_ntu": e["turb_ntu"],
+                "turb": e.get("turb_last"),
+                "ph": e.get("ph"),
+            }
+        )
         if len(rows) >= n:
             break
     rows.reverse()  # oldest first for the chart
-    return _json({
-        "id": pid, "name": logic.POINTS[pid]["name"], "points": rows,
-        "limits": {"yellow": logic.TDS_YELLOW, "human": logic.TDS_HUMAN_LIMIT,
-                   "livestock": logic.TDS_LIVESTOCK_LIMIT, "ph": list(logic.PH_OK)},
-    })
+    return _json(
+        {
+            "id": pid,
+            "name": logic.POINTS[pid]["name"],
+            "points": rows,
+            "limits": {
+                "yellow": logic.TDS_YELLOW,
+                "human": logic.TDS_HUMAN_LIMIT,
+                "livestock": logic.TDS_LIVESTOCK_LIMIT,
+                "ph": list(logic.PH_OK),
+            },
+        }
+    )
 
 
 # ---------------------------------------------------------------- weather --
@@ -418,8 +462,10 @@ def _azure_maps_forecast(days=10):
     key = os.environ.get("MAPS_KEY")
     if not key:
         return None
-    url = ("https://atlas.microsoft.com/weather/forecast/daily/json?api-version=1.1"
-           f"&query={WEATHER_LAT},{WEATHER_LON}&duration={days}&subscription-key={key}")
+    url = (
+        "https://atlas.microsoft.com/weather/forecast/daily/json?api-version=1.1"
+        f"&query={WEATHER_LAT},{WEATHER_LON}&duration={days}&subscription-key={key}"
+    )
     try:
         with urllib.request.urlopen(url, timeout=15) as resp:
             data = json.load(resp)
@@ -432,12 +478,14 @@ def _azure_maps_forecast(days=10):
 
     out = []
     for f in data.get("forecasts", []):
-        out.append({
-            "date": str(f.get("date", ""))[:10],
-            "rain_mm": round(liquid(f, "day") + liquid(f, "night"), 1),
-            "tmax": ((f.get("temperature") or {}).get("maximum") or {}).get("value"),
-            "p_rain": (f.get("day") or {}).get("precipitationProbability"),
-        })
+        out.append(
+            {
+                "date": str(f.get("date", ""))[:10],
+                "rain_mm": round(liquid(f, "day") + liquid(f, "night"), 1),
+                "tmax": ((f.get("temperature") or {}).get("maximum") or {}).get("value"),
+                "p_rain": (f.get("day") or {}).get("precipitationProbability"),
+            }
+        )
     return out or None
 
 
@@ -445,10 +493,12 @@ def _azure_maps_forecast(days=10):
 def weather(timer: func.TimerRequest):
     """Past 60 days (dry spell, first flush) from Open-Meteo,
     next 10 days from Azure Maps Weather (fallback: Open-Meteo)."""
-    url = ("https://api.open-meteo.com/v1/forecast"
-           f"?latitude={WEATHER_LAT}&longitude={WEATHER_LON}"
-           "&daily=precipitation_sum,temperature_2m_max&past_days=60&forecast_days=10"
-           "&timezone=Africa%2FNairobi")
+    url = (
+        "https://api.open-meteo.com/v1/forecast"
+        f"?latitude={WEATHER_LAT}&longitude={WEATHER_LON}"
+        "&daily=precipitation_sum,temperature_2m_max&past_days=60&forecast_days=10"
+        "&timezone=Africa%2FNairobi"
+    )
     try:
         with urllib.request.urlopen(url, timeout=15) as resp:
             data = json.load(resp)
@@ -456,8 +506,9 @@ def weather(timer: func.TimerRequest):
         w = logic.weather_features(d["time"], d["precipitation_sum"])
         fc = _azure_maps_forecast()
         w["forecast_source"] = "azure-maps" if fc else "open-meteo"
-        w["forecast"] = fc or logic.open_meteo_forecast(d["time"], d["precipitation_sum"],
-                                                        d.get("temperature_2m_max"))
+        w["forecast"] = fc or logic.open_meteo_forecast(
+            d["time"], d["precipitation_sum"], d.get("temperature_2m_max")
+        )
         w["rain_forecast_48h"] = round(sum((x.get("rain_mm") or 0) for x in w["forecast"][1:3]), 1)
         tc = _table()
         _put(tc, "weather", "current", w)
@@ -475,7 +526,7 @@ def _json(data, status=200):
 @app.route(route="state", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
 def state(req: func.HttpRequest) -> func.HttpResponse:
     result = _assess_all(_table())
-    result["stations"] = REAL_DEVICES               # points with a real station (LEDs, reset button)
+    result["stations"] = REAL_DEVICES  # points with a real station (LEDs, reset button)
     return _json(result)
 
 
@@ -490,10 +541,13 @@ def map_page(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="testalert", methods=["GET", "POST"], auth_level=func.AuthLevel.ANONYMOUS)
 def testalert(req: func.HttpRequest) -> func.HttpResponse:
     """Sends one test message over all channels and reports what happened per channel."""
-    status = _notify("TEST ALERT from Wendy's Early Signal.\n"
-                     "If you can read this, this channel works.\n"
-                     f"Sent {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC",
-                     sms="TEST from Wendy's Early Signal: SMS works.", urgent=True)
+    status = _notify(
+        "TEST ALERT from Wendy's Water Wonder.\n"
+        "If you can read this, this channel works.\n"
+        f"Sent {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC",
+        sms="TEST from Wendy's Water Wonder: SMS works.",
+        urgent=True,
+    )
     return _json(status)
 
 
@@ -503,10 +557,10 @@ def _reset_point(tc, pid):
     for k in ("last_test", "last_test_ts", "override", "high_salt_streak", "turb_ntu"):
         st.pop(k, None)
     if "ec_us" in st:
-        st["ec_slow"] = st["ec_slow_before"] = st["ec_us"]   # current value becomes the new normal
+        st["ec_slow"] = st["ec_slow_before"] = st["ec_us"]  # current value becomes the new normal
     _put(tc, "point", pid, st)
     try:
-        tc.delete_entity("notify", pid)   # next evaluation counts as "first time": no alert, no SMS
+        tc.delete_entity("notify", pid)  # next evaluation counts as "first time": no alert, no SMS
     except Exception:
         pass
 
@@ -543,7 +597,7 @@ def override(req: func.HttpRequest) -> func.HttpResponse:
     st = _get(tc, "point", pid)
     st["override"] = {"level": level, "ts": datetime.now(timezone.utc).isoformat()}
     _put(tc, "point", pid, st)
-    return _json(_refresh_and_notify(tc))   # pushes the colour to a live station's LEDs
+    return _json(_refresh_and_notify(tc))  # pushes the colour to a live station's LEDs
 
 
 @app.route(route="testresult", methods=["POST"], auth_level=func.AuthLevel.ANONYMOUS)
@@ -553,7 +607,9 @@ def testresult(req: func.HttpRequest) -> func.HttpResponse:
         pid, test, result = b["point_id"], b["test"], b["result"]
         assert pid in logic.POINTS and result in ("positive", "negative")
     except Exception:
-        return _json({"error": "send point_id, test (h2s|cbt|salt_kit), result (positive|negative)"}, 400)
+        return _json(
+            {"error": "send point_id, test (h2s|cbt|salt_kit), result (positive|negative)"}, 400
+        )
     tc = _table()
     st = _get(tc, "point", pid)
     now = datetime.now(timezone.utc).isoformat()
@@ -586,18 +642,38 @@ def reset_water(req: func.HttpRequest) -> func.HttpResponse:
 def _demo_forecast(rains, tmax):
     """Fake 10-day forecast starting today, for the demo buttons."""
     from datetime import timedelta
+
     today = datetime.now(timezone.utc).date()
-    return [{"date": (today + timedelta(days=i)).isoformat(), "rain_mm": r, "tmax": t, "p_rain": None}
-            for i, (r, t) in enumerate(zip(rains, tmax))]
+    return [
+        {"date": (today + timedelta(days=i)).isoformat(), "rain_mm": r, "tmax": t, "p_rain": None}
+        for i, (r, t) in enumerate(zip(rains, tmax))
+    ]
 
 
 PRESETS = {
-    "heavy_rain": {"rain_72h": 35, "dry_spell_before_rain": 40, "dry_days": 0, "rain_forecast_48h": 0,
-                   "forecast": _demo_forecast([4, 2, 0, 0, 0, 1, 0, 0, 0, 0], [31] * 10)},
-    "forecast":   {"rain_72h": 0, "dry_spell_before_rain": 0, "dry_days": 40, "rain_forecast_48h": 30,
-                   "forecast": _demo_forecast([0, 22, 8, 3, 0, 0, 0, 0, 0, 0], [35, 33, 30, 31, 33, 34, 35, 35, 36, 36])},
-    "dry":        {"rain_72h": 0, "dry_spell_before_rain": 0, "dry_days": 60, "rain_forecast_48h": 0,
-                   "forecast": _demo_forecast([0] * 10, [37, 38, 38, 39, 39, 38, 39, 40, 39, 38])},
+    "heavy_rain": {
+        "rain_72h": 35,
+        "dry_spell_before_rain": 40,
+        "dry_days": 0,
+        "rain_forecast_48h": 0,
+        "forecast": _demo_forecast([4, 2, 0, 0, 0, 1, 0, 0, 0, 0], [31] * 10),
+    },
+    "forecast": {
+        "rain_72h": 0,
+        "dry_spell_before_rain": 0,
+        "dry_days": 40,
+        "rain_forecast_48h": 30,
+        "forecast": _demo_forecast(
+            [0, 22, 8, 3, 0, 0, 0, 0, 0, 0], [35, 33, 30, 31, 33, 34, 35, 35, 36, 36]
+        ),
+    },
+    "dry": {
+        "rain_72h": 0,
+        "dry_spell_before_rain": 0,
+        "dry_days": 60,
+        "rain_forecast_48h": 0,
+        "forecast": _demo_forecast([0] * 10, [37, 38, 38, 39, 39, 38, 39, 40, 39, 38]),
+    },
 }
 
 
@@ -611,7 +687,12 @@ def simulate(req: func.HttpRequest) -> func.HttpResponse:
     if preset == "reset":
         _put(tc, "weather", "override", {"active": False})
     elif preset in PRESETS:
-        _put(tc, "weather", "override", {"active": True, "source": f"demo:{preset}", **PRESETS[preset]})
+        _put(
+            tc,
+            "weather",
+            "override",
+            {"active": True, "source": f"demo:{preset}", **PRESETS[preset]},
+        )
     else:
         return _json({"error": f"unknown preset {preset}"}, 400)
     return _json(_refresh_and_notify(tc))

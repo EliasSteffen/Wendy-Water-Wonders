@@ -1,0 +1,29 @@
+{
+  "name": "frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Project website (GitHub Pages) with the Remotion animations, the Turkana map and a dashboard demo",
+  "scripts": {
+    "predev": "node scripts/copy-map.mjs",
+    "dev": "astro dev",
+    "prebuild": "node scripts/copy-map.mjs",
+    "build": "astro build",
+    "preview": "astro preview",
+    "typecheck": "astro sync && tsc --noEmit"
+  },
+  "dependencies": {
+    "@astrojs/react": "7.0.1",
+    "@remotion/google-fonts": "4.0.530",
+    "@remotion/player": "4.0.530",
+    "astro": "7.3.8",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.530"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "typescript": "5.9.3"
+  }
+}

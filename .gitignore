@@ -22,3 +22,8 @@ cloud/limits.json
 # Local only
 .claude/
 VEROEFFENTLICHUNGSPLAN.md
+
+# Frontend build output and the copied map
+frontend/dist/
+frontend/.astro/
+frontend/public/map/

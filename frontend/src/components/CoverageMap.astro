@@ -1,0 +1,40 @@
+---
+// Static SVG of the Turkana analysis (see geo/): rural water points by distance to the nearest known mast.
+import data from "../../../animations/src/data/turkana.json";
+
+const COLORS = ["#22c55e", "#facc15", "#f97316", "#ef4444"];
+const LABELS = ["up to 5 km", "5–15 km", "15–35 km", "over 35 km"];
+const CLASSES = ["le5", "le15", "le35", "gt35"] as const;
+const ring = 35 * data.km;
+---
+
+<div class="split">
+  <figure class="map-figure">
+    <svg viewBox={`-10 -10 ${data.width + 20} ${data.height + 20}`} role="img" aria-labelledby="map-title map-desc">
+      <title id="map-title">Turkana County: water points and cell towers</title>
+      <desc id="map-desc">
+        {data.stats.rural} rural water points coloured by distance to the nearest of {data.stats.masts} known cell towers; dashed circles show 35 km around each tower.
+      </desc>
+      <path d={data.boundary} fill="rgba(56,130,246,0.12)" stroke="rgba(96,165,250,0.8)" stroke-width="3" />
+      {data.masts.map(([x, y]) => <circle cx={x} cy={y} r={ring} fill="none" stroke="rgba(148,163,184,0.35)" stroke-width="1.5" stroke-dasharray="6 6" />)}
+      {data.points.map(([x, y, c]) => <circle cx={x} cy={y} r="5" fill={COLORS[c]} />)}
+      {data.masts.map(([x, y]) => <path d={`M${x} ${y - 11} L${x + 9} ${y + 7} L${x - 9} ${y + 7} Z`} fill="#e2e8f0" stroke="#0f172a" stroke-width="1.5" />)}
+    </svg>
+    <figcaption class="fine">Map data: © OpenStreetMap contributors · Water Point Data Exchange · geoBoundaries</figcaption>
+  </figure>
+  <div>
+    <h3>How far is the next cell tower?</h3>
+    <p class="muted">{data.stats.rural} rural water points from the SNV mapping in OpenStreetMap, by distance to the nearest of the {data.stats.masts} masts known there.</p>
+    <div class="bars">
+      {CLASSES.map((c, i) => (
+        <div class="bar">
+          <span>{LABELS[i]}</span>
+          <div class="bar-track"><div class="bar-fill" style={`width:${data.stats.classes[c]}%;background:${COLORS[i]}`} /></div>
+          <b>{data.stats.classes[c]} %</b>
+        </div>
+      ))}
+    </div>
+    <p class="fine">OpenStreetMap knows only some of the masts, so real distances are often shorter. Distance is not the same as reception: terrain and the mast's technology matter too. The dashed circles mark 35 km, the technical limit of 2G.</p>
+    <slot />
+  </div>
+</div>

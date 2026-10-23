@@ -17,7 +17,8 @@ The station code in `pi/` runs on the Pi and uploads to Azure; the cloud side (F
 | `shared/protocol/` | JSON Schemas and examples for the upload message and the device twin; tests check the Pi and the cloud against them |
 | `simulator/` | Simulates the other 13 water points for the demo |
 | `geo/` | Map of water points and cell towers in Turkana (`build_map.py` writes `geo/dist/`) |
-| `frontend/` | Project website (GitHub Pages), not built yet |
+| `frontend/` | Project website (Astro + React, GitHub Pages): plays the animations live, Turkana map, dashboard demo from `cloud/export_demo_state.py` |
+| `package.json` | npm workspaces `animations/` and `frontend/`: one `npm install` in the repo root |
 | `animations/` | Remotion videos: wiring guides and how the station works |
 | `docs/hardware.md` | Parts, wiring, formulas, calibration, lessons learned (for people; keep it in sync with this file) |
 | `*/tests/` | pytest next to each part; run `pytest` and `ruff check .` from the repo root before committing |

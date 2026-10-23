@@ -1,0 +1,192 @@
+---
+import Base from "../layouts/Base.astro";
+import AnimationPlayer from "../components/AnimationPlayer";
+import CoverageMap from "../components/CoverageMap.astro";
+import DashboardDemo from "../components/DashboardDemo";
+import { REPO_URL, TEAM, repoFile, withBase } from "../data/site";
+import LIMITS from "../../../shared/limits.json";
+
+const title = "Wendy's Water Wonder";
+const description =
+  "A low-cost water-quality station and early-warning system for water points in Turkana, Kenya. Built at the BCG Platinion hackathon Fighting World Hunger, October 2026.";
+---
+
+<Base title={title} description={description}>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="#top"><img src={withBase("favicon.svg")} width="28" height="28" alt="" /> Wendy's Water Wonder</a>
+      <nav class="site-nav" aria-label="Sections">
+        <a href="#station">Station</a>
+        <a href="#network">Network</a>
+        <a href="#system">System</a>
+        <a href="#demo">Dashboard</a>
+        <a href="#build">Build it</a>
+        <a href="#team">Team</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <p class="eyebrow">Hackathon prototype · BCG Platinion · Fighting World Hunger 2026</p>
+          <h1>Wendy's Water Wonder</h1>
+          <p class="lead">A low-cost station at the well measures the water, warns people on site and tells the right people what to do, even where the mobile network is patchy.</p>
+          <div class="buttons">
+            <a class="btn primary" href="#station">See how it works</a>
+            <a class="btn" href={REPO_URL}>Code on GitHub</a>
+          </div>
+        </div>
+        <div class="hero-media">
+          <img
+            src={withBase("og.jpg")}
+            width="1280"
+            height="720"
+            alt="The station: a Raspberry Pi with a breadboard, three water sensors and status lights; a water sample has turned the red light on."
+          />
+        </div>
+        <p class="notice">Built in two days. This is not a certified water-testing device, and all limits are placeholders until they are agreed with water experts.</p>
+      </div>
+    </section>
+
+    <section id="problem">
+      <div class="wrap">
+        <p class="eyebrow">The problem</p>
+        <h2>Bad water is noticed too late</h2>
+        <p class="lead">In Turkana, many people depend on boreholes, shallow wells and open pans. Wendy, the field officer in our scenario, looks after many of them.</p>
+        <div class="cards">
+          <div class="card"><h3>It changes unnoticed</h3><p>A water point can turn salty or contaminated, and nobody knows until people are already drinking from it.</p></div>
+          <div class="card"><h3>Nobody can be everywhere</h3><p>Field staff can only visit each point now and then. Lab tests take time.</p></div>
+          <div class="card"><h3>The network is patchy</h3><p>Many water points are far from the next cell tower, so data has to wait until there is a connection.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="how">
+      <div class="wrap">
+        <p class="eyebrow">The idea</p>
+        <h2>Measure, warn, act</h2>
+        <ol class="steps">
+          <li><strong>Measure at the well</strong><span>Salt, turbidity and pH every 30 seconds.</span></li>
+          <li><strong>Warn on site</strong><span>Three lights work even without a network.</span></li>
+          <li><strong>Send when possible</strong><span>A buffer keeps the readings until a connection is there.</span></li>
+          <li><strong>Decide in the cloud</strong><span>Weather, lab tests and the other water points come together.</span></li>
+          <li><strong>Alert and reset</strong><span>The right people get an SMS; only a person switches a warning off.</span></li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="station">
+      <div class="wrap">
+        <p class="eyebrow">The station</p>
+        <h2>A Raspberry Pi, three sensors and a traffic light</h2>
+        <p class="lead">Watch what happens when salt, mud or acid get into the water. The animation runs live in your browser; the chapters jump straight to each situation.</p>
+        <AnimationPlayer client:visible film="station" />
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Light</th><th>Meaning</th><th>Switched on by</th></tr></thead>
+            <tbody>
+              <tr><td><span class="dot" style="background:#f8fafc"></span>white</td><td>The station runs and measures nothing unusual. <b>Not</b> "safe".</td><td>the station software</td></tr>
+              <tr><td><span class="dot" style="background:#facc15"></span>yellow</td><td>Suspicious: probably not drinkable as it is</td><td>salt over {LIMITS.tds_ppm.yellow} ppm, pH outside {LIMITS.ph.min}–{LIMITS.ph.max}, turbidity over {LIMITS.turbidity_ntu.yellow} NTU, or a germ risk from the cloud</td></tr>
+              <tr><td><span class="dot" style="background:#ef4444"></span>red</td><td>Not drinkable, whatever you do: boiling makes salty water worse</td><td>salt over {LIMITS.tds_ppm.red} ppm, or the cloud says salt is red</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="fine">Yellow and red only go up on their own. They go off when a person who checked the water point presses "Reset water" in the dashboard.</p>
+      </div>
+    </section>
+
+    <section id="network">
+      <div class="wrap">
+        <p class="eyebrow">The place</p>
+        <h2>Turkana: water far from the network</h2>
+        <p class="lead">We put open data on water points and cell towers on one map. It shows why the station has to work offline first.</p>
+        <CoverageMap>
+          <a class="btn" href={withBase("map/turkana-map.html")}>Open the full interactive map (German)</a>
+        </CoverageMap>
+      </div>
+    </section>
+
+    <section id="system">
+      <div class="wrap">
+        <p class="eyebrow">The system</p>
+        <h2>From the well to the phone</h2>
+        <p class="lead">The station sends its buffer to Azure whenever it has a connection. The cloud combines the readings with weather and lab tests, alerts people and sends its verdict back to the station's lights.</p>
+        <AnimationPlayer client:visible film="architecture" />
+      </div>
+    </section>
+
+    <section id="demo">
+      <div class="wrap">
+        <p class="eyebrow">Try it</p>
+        <h2>Wendy's dashboard</h2>
+        <p class="lead">Three situations, computed with the same risk logic that runs in the cloud: warnings, what to test today, the nearest usable water point and the SMS that goes out.</p>
+        <DashboardDemo client:visible />
+      </div>
+    </section>
+
+    <section id="build">
+      <div class="wrap">
+        <p class="eyebrow">Build it</p>
+        <h2>Everything is open</h2>
+        <div class="cards">
+          <div class="card">
+            <h3>The station</h3>
+            <p>Raspberry Pi 5, MCP3008 ADC, CQRobot TDS meter, DFRobot-style turbidity sensor, DFRobot Gravity pH meter, three LEDs and a few resistors.</p>
+            <p style="margin-top:12px"><a href={repoFile("docs/hardware.md")}>Parts, wiring and calibration</a></p>
+          </div>
+          <div class="card">
+            <h3>The cloud</h3>
+            <p>Azure IoT Hub, Functions, Table Storage and Maps, plus Open-Meteo for the weather. SMS via Azure Communication Services or Twilio.</p>
+            <p style="margin-top:12px"><a href={repoFile("cloud/README.md")}>Set up and deploy</a></p>
+          </div>
+          <div class="card">
+            <h3>Without hardware</h3>
+            <p>The tests, the risk logic and the uploader in fake mode run on any laptop.</p>
+            <p style="margin-top:12px"><code>pytest</code> · <code>python3 pi/uploader.py --fake --dry-run</code></p>
+          </div>
+        </div>
+        <h3 style="margin-top:48px">Ideas for next steps</h3>
+        <ul class="muted">
+          <li>Cheaper hardware: a Raspberry Pi Pico or ESP32 instead of the Pi, with solar power</li>
+          <li>An SMS uplink over 2G or LoRa where there is no mobile data</li>
+          <li>Africa's Talking instead of Twilio for SMS in Kenya</li>
+          <li>Predict pump failures from usage and sensor data</li>
+          <li>Validate the limits and the germ-risk model with water experts and real lab tests</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="honest">
+      <div class="wrap">
+        <p class="eyebrow">Honestly</p>
+        <h2>What is real and what is a placeholder</h2>
+        <div class="cards">
+          <div class="card"><h3>Real</h3><p>The station with three sensors, offline buffer, lights and upload to Azure; the risk logic, outlook, dashboard and SMS alerts; the weather data; the human reset; the Turkana map from open data.</p></div>
+          <div class="card"><h3>Placeholder</h3><p>The salt limits ({LIMITS.tds_ppm.yellow} / {LIMITS.tds_ppm.red} / {LIMITS.tds_ppm.livestock_red} mg/L) and the germ-risk weights; the positions of the 14 water points near Lodwar; 13 of the 14 points are simulated; turbidity in NTU is only a rough estimate.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="team">
+      <div class="wrap">
+        <p class="eyebrow">Team</p>
+        <h2>Who built it</h2>
+        <ul class="team">
+          {TEAM.map((m) => (
+            <li>{m.github ? <a href={`https://github.com/${m.github}`}>{m.name}</a> : m.name}</li>
+          ))}
+        </ul>
+        <p class="muted" style="margin-top:24px">Thanks to BCG Platinion for the hackathon and to Welthungerhilfe for the case.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>Code: <a href={repoFile("LICENSE")}>MIT</a> · Documentation and animations: <a href={repoFile("LICENSE-docs")}>CC BY 4.0</a> · Map data: © OpenStreetMap contributors (ODbL), Water Point Data Exchange (CC BY 4.0), geoBoundaries · Weather: Open-Meteo, Azure Maps</p>
+      <p>The animations are made with <a href="https://www.remotion.dev">Remotion</a>.</p>
+    </div>
+  </footer>
+</Base>

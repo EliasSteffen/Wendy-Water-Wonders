@@ -130,3 +130,14 @@ def test_demo_salt_event_at_the_live_station():
     msg = logic.demo()
     assert msg.startswith("WATER ALERT wp07")
     assert "Do NOT boil" in msg and "Nearest alternative" in msg
+
+
+def test_assess_all_only_the_live_station_turns_red():
+    states = {pid: steady(p["baseline_ec"]) for pid, p in logic.POINTS.items()}
+    states["wp07"], states["wp03"] = steady(3000.0), steady(3000.0)
+    result = logic.assess_all(states, {**DRY, "forecast": []}, {"wp07"}, NOW)
+    by_id = {a["id"]: a for a in result["points"]}
+    assert by_id["wp07"]["level"] == "red" and by_id["wp07"]["live"]
+    assert by_id["wp03"]["level"] == "yellow"            # simulated points go up to yellow at most
+    assert by_id["wp07"]["alternative"]["id"] not in ("wp07", "wp03")
+    assert len(result["priorities"]) == 3

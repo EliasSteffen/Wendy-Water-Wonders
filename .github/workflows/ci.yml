@@ -17,17 +17,15 @@ jobs:
       - run: ruff check .
       - run: pytest
 
-  animations:
+  web:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: animations
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: animations/package-lock.json
-      - run: npm ci
-      - run: npm run typecheck
+      - run: npm ci                        # npm workspaces: animations/ and frontend/
+      - run: npm run typecheck --workspace animations
+      - run: npm run typecheck --workspace frontend
+      - run: npm run build --workspace frontend

@@ -1,0 +1,8 @@
+{
+  "name": "wendys-water-wonder",
+  "private": true,
+  "workspaces": [
+    "animations",
+    "frontend"
+  ]
+}
