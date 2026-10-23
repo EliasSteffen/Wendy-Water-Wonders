@@ -1,6 +1,6 @@
 # Authors
 
-Wendy's Early Signal was built by this team at the BCG Platinion hackathon "Fighting World Hunger" in October 2026.
+Wendy's Water Wonder was built by this team at the BCG Platinion hackathon "Fighting World Hunger" in October 2026.
 
 | Name | GitHub |
 |---|---|

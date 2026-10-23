@@ -1,4 +1,4 @@
-# Wendy's Early Signal – cloud
+# Wendy's Water Wonder – cloud
 
 Built during the hackathon. Everything runs on the Azure toolbox (IoT Hub, Functions, Maps) plus Open-Meteo for the weather.
 
@@ -15,15 +15,15 @@ Browser ──► /api/map (Azure Maps) ──► /api/state (JSON) ◄───
 
 ## Files
 
-| File | What |
-|---|---|
-| `function_app.py` | All Azure Functions (IoT trigger, timer, HTTP) |
-| `logic.py` | Risk logic: salt, germs, alternative water point, test priority. Plain Python, testable locally |
-| `forecast.py` | Outlook for the next days (salt, germs). New predictions go here |
-| `points.json` | The 14 water points. **Coordinates are placeholders near Lodwar** |
-| `static/map.html` | Wendy's dashboard: map, situation, salt chart, reset and colour per point |
-| `../pi/uploader.py` | Runs on the Pi: reads the sensors, buffers, uploads, receives the device twin |
-| `../simulator/simulate_points.py` | Simulates the other 13 points without hardware, with commands for the demo |
+| File                              | What                                                                                            |
+| --------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `function_app.py`                 | All Azure Functions (IoT trigger, timer, HTTP)                                                  |
+| `logic.py`                        | Risk logic: salt, germs, alternative water point, test priority. Plain Python, testable locally |
+| `forecast.py`                     | Outlook for the next days (salt, germs). New predictions go here                                |
+| `points.json`                     | The 14 water points. **Coordinates are placeholders near Lodwar**                               |
+| `static/map.html`                 | Wendy's dashboard: map, situation, salt chart, reset and colour per point                       |
+| `../pi/uploader.py`               | Runs on the Pi: reads the sensors, buffers, uploads, receives the device twin                   |
+| `../simulator/simulate_points.py` | Simulates the other 13 points without hardware, with commands for the demo                      |
 
 ## 1. Data contract (Pi → cloud)
 
@@ -191,9 +191,9 @@ The Function `weather` fetches every 30 minutes:
 
 `forecast.py` turns this into an outlook per point:
 
-| Prediction | Rule (placeholder) |
-|---|---|
-| `salt_outlook` | salt rising + less than 20 mm rain in 10 days → "will get worse, plan an alternative or water trucking now" |
+| Prediction     | Rule (placeholder)                                                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `salt_outlook` | salt rising + less than 20 mm rain in 10 days → "will get worse, plan an alternative or water trucking now"                     |
 | `germ_outlook` | heavy rain (≥ 10 mm) in the next 3 days after ≥ 14 dry days, at unprotected points → "have chlorine ready, test after the rain" |
 
 **Add a prediction:** write a function with `@predictor` in `forecast.py` that returns `None` or a dictionary with `kind`, `level`, `horizon_days`, `title`, `message` and `drivers`. The API, the map (ring + list) and the SMS pick it up automatically. Ideas: water demand in a heatwave, overloaded alternative points, a failing pump.
@@ -209,10 +209,10 @@ On the map a **ring** around a point means "will get worse soon". The side panel
 
 ## 8. Troubleshooting
 
-| Problem | Fix |
-|---|---|
-| Function gets no messages | Check `IOTHUB_EH_NAME`; the consumer group `functions` must exist. Logs: portal → Function App → Log stream |
-| Map is grey | `MAPS_KEY` is missing, or the page wasn't opened via `/api/map` |
-| `/api/state` says "no data" | Simulator or Pi isn't running. Check with `az iot hub monitor-events` |
-| Twin doesn't reach the Pi | `IOTHUB_SERVICE_CONN` must use the `iothubowner` policy |
-| Pi doesn't upload | The Pi needs internet and port 8883 (MQTT) must not be blocked. University or event Wi-Fi often blocks it: use a phone hotspot or `IOTHUB_WEBSOCKETS=1` (port 443) |
+| Problem                     | Fix                                                                                                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Function gets no messages   | Check `IOTHUB_EH_NAME`; the consumer group `functions` must exist. Logs: portal → Function App → Log stream                                                        |
+| Map is grey                 | `MAPS_KEY` is missing, or the page wasn't opened via `/api/map`                                                                                                    |
+| `/api/state` says "no data" | Simulator or Pi isn't running. Check with `az iot hub monitor-events`                                                                                              |
+| Twin doesn't reach the Pi   | `IOTHUB_SERVICE_CONN` must use the `iothubowner` policy                                                                                                            |
+| Pi doesn't upload           | The Pi needs internet and port 8883 (MQTT) must not be blocked. University or event Wi-Fi often blocks it: use a phone hotspot or `IOTHUB_WEBSOCKETS=1` (port 443) |

@@ -1,4 +1,4 @@
-# Wendy's Early Signal
+# Wendy's Water Wonder
 
 **A low-cost water-quality station and early-warning system for water points in Turkana, Kenya.**
 Built in two days at the BCG Platinion hackathon "Fighting World Hunger" (October 2026).
@@ -40,26 +40,26 @@ flowchart LR
 
 ### The traffic light
 
-| LED | Meaning | Triggered by |
-|---|---|---|
-| white | Station running, no anomaly measured. **Not** "safe". | `uploader.py` running |
-| yellow | Suspicious: probably not drinkable as it is | TDS > 700 ppm, pH outside 6.5–8.5, turbidity > 500 NTU, or a germ risk from the cloud |
-| red | Not drinkable, whatever you do (boiling makes salty water worse) | TDS > 800 ppm, or salt red from the cloud |
+| LED    | Meaning                                                          | Triggered by                                                                          |
+| ------ | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| white  | Station running, no anomaly measured. **Not** "safe".            | `uploader.py` running                                                                 |
+| yellow | Suspicious: probably not drinkable as it is                      | TDS > 700 ppm, pH outside 6.5–8.5, turbidity > 500 NTU, or a germ risk from the cloud |
+| red    | Not drinkable, whatever you do (boiling makes salty water worse) | TDS > 800 ppm, or salt red from the cloud                                             |
 
 The limits live in [`shared/limits.json`](shared/limits.json); the Pi, the cloud and the animations all read that file. Yellow and red only go up on their own. They go off when a person who checked the water point presses **Reset water** in the dashboard.
 
 ## Repository
 
-| Folder | What |
-|---|---|
-| [`pi/`](pi/) | Runs on the Raspberry Pi: sensor conversions, uploader with offline buffer, LEDs, sensor test scripts |
-| [`cloud/`](cloud/) | Azure Functions: ingest, risk logic, outlook, alerts, live dashboard |
-| [`shared/`](shared/) | What the Pi and the cloud agree on: the limits ([`limits.json`](shared/limits.json)) and the message formats ([`protocol/`](shared/protocol/)) |
-| [`simulator/`](simulator/) | Simulates 13 more water points for the demo |
-| [`geo/`](geo/) | Turkana map: water points and cell towers, built into GeoJSON for the website and the cloud |
-| [`frontend/`](frontend/) | The project website (GitHub Pages) |
-| [`animations/`](animations/) | Remotion videos: wiring guides and how the station works |
-| [`docs/hardware.md`](docs/hardware.md) | Parts, wiring, formulas, calibration, lessons learned |
+| Folder                                 | What                                                                                                                                           |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`pi/`](pi/)                           | Runs on the Raspberry Pi: sensor conversions, uploader with offline buffer, LEDs, sensor test scripts                                          |
+| [`cloud/`](cloud/)                     | Azure Functions: ingest, risk logic, outlook, alerts, live dashboard                                                                           |
+| [`shared/`](shared/)                   | What the Pi and the cloud agree on: the limits ([`limits.json`](shared/limits.json)) and the message formats ([`protocol/`](shared/protocol/)) |
+| [`simulator/`](simulator/)             | Simulates 13 more water points for the demo                                                                                                    |
+| [`geo/`](geo/)                         | Turkana map: water points and cell towers, built into GeoJSON for the website and the cloud                                                    |
+| [`frontend/`](frontend/)               | The project website (GitHub Pages)                                                                                                             |
+| [`animations/`](animations/)           | Remotion videos: wiring guides and how the station works                                                                                       |
+| [`docs/hardware.md`](docs/hardware.md) | Parts, wiring, formulas, calibration, lessons learned                                                                                          |
 
 Each Python part has its tests next to it: `pi/tests/`, `cloud/tests/`, `shared/tests/`.
 

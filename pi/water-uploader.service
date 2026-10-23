@@ -1,5 +1,5 @@
 [Unit]
-Description=Wendy's Early Signal - water sensor uploader
+Description=Wendy's Water Wonder - water sensor uploader
 After=network-online.target
 Wants=network-online.target
 

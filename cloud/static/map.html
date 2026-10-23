@@ -1,431 +1,1073 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wendy's Early Signal</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap">
-<link rel="stylesheet" href="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.css">
-<script src="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<style>
-  :root {
-    --ink: #1d2327; --soft: #5b6670; --rule: #d9dee2; --paper: #ffffff; --wash: #f2f4f5;
-    --red: #d1242f; --yellow: #e3b008; --yellow-text: #8a6100;
-  }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; overflow: hidden; }
-  body { background: var(--paper); color: var(--ink); font: 16px/1.4 "Atkinson Hyperlegible", system-ui, sans-serif; }
-  .app { display: grid; grid-template-columns: 1fr 380px; height: 100vh; }
-  .mapwrap { position: relative; }
-  #map { position: absolute; inset: 0; }
-
-  /* fixed side panel: nothing scrolls, the chart takes the remaining height */
-  aside { height: 100vh; overflow: hidden; border-left: 1px solid var(--rule); padding: 20px 24px 14px;
-          display: flex; flex-direction: column; }
-  aside > * { flex: none; }
-  .block { padding: 14px 0; border-top: 1px solid var(--rule); }
-
-  h1 { font-size: 15px; font-weight: 700; margin: 0; color: var(--soft); }
-  .counts { display: flex; gap: 22px; margin: 8px 0 6px; }
-  .count b { display: block; font-size: 34px; line-height: 1; }
-  .count span { font-size: 14px; color: var(--soft); }
-  .count.red b { color: var(--red); } .count.yellow b { color: var(--yellow-text); }
-  .station { margin: 0 0 14px; font-size: 15px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .station.off { color: var(--red); }
-
-  .title { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-  .title h2 { font-size: 21px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .live { font-size: 12px; font-weight: 700; border: 1.5px solid var(--ink); border-radius: 3px; padding: 0 5px; margin-left: 6px; vertical-align: 3px; }
-  .status { font-weight: 700; white-space: nowrap; }
-  .status.red { color: var(--red); } .status.yellow { color: var(--yellow-text); } .status.none { color: var(--soft); }
-  .sub { color: var(--soft); font-size: 14px; margin: 2px 0 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-  .sensors { display: grid; grid-template-columns: repeat(4, auto); justify-content: space-between; margin: 0 -4px; align-items: end; }
-  .sensors button { display: flex; flex-direction: column-reverse; align-items: flex-start; font: inherit; color: inherit;
-                    background: none; border: 0; border-bottom: 3px solid transparent; padding: 2px 4px 4px; margin: 0 4px 0 -4px;
-                    cursor: pointer; text-align: left; border-radius: 3px 3px 0 0; }
-  .sensors button:hover { background: var(--wash); }
-  .sensors button[aria-pressed="true"] { border-bottom-color: var(--ink); }
-  .chartnote { position: absolute; inset: 30px 0 20px 30px; display: flex; align-items: center; justify-content: center;
-               color: var(--soft); font-size: 14px; pointer-events: none; }
-  .sensors .dd { margin: 0; display: block; font-size: 22px; font-weight: 700; line-height: 1.15; white-space: nowrap; }
-  .sensors .dd small { font-size: 14px; font-weight: 400; color: var(--soft); }
-  .sensors .dd.off { font-size: 15px; font-weight: 400; color: var(--soft); line-height: 1.6; }
-  .sensors .dd.bad { color: var(--red); }
-  .sensors .dt { font-size: 13px; color: var(--soft); display: block; white-space: nowrap; }
-  .germ { margin: 10px 0 0; font-size: 14px; color: var(--soft); }
-
-  .chartnote[hidden] { display: none; }
-  .chartbox { flex: 1 1 auto; min-height: 80px; position: relative; margin: 10px 0 4px; }
-  .advice { margin: 0; padding-left: 18px; font-size: 15px; }
-  .advice li + li { margin-top: 2px; }
-  .alt { margin: 6px 0 0; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-  .confirm { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; font-size: 14px; }
-  .confirm[hidden] { display: none; }
-  .confirm input[type=text] { font: inherit; padding: 5px 8px; border: 1px solid var(--rule); border-radius: 3px; min-width: 0; }
-  .confirm label { white-space: nowrap; }
-  .actions { display: flex; gap: 8px; }
-  button.act { font: inherit; font-size: 15px; padding: 6px 12px; border-radius: 3px; cursor: pointer;
-               border: 1.5px solid var(--ink); background: var(--paper); color: var(--ink); }
-  button.act:hover { background: var(--wash); }
-  button.act.yellow { border-color: var(--yellow); }
-  button.act.red { border-color: var(--red); color: var(--red); }
-  .msg { height: 2.6em; margin: 6px 0 0; font-size: 13px; color: var(--soft); overflow: hidden; }
-
-  footer { border-top: 1px solid var(--rule); padding-top: 10px; display: flex; justify-content: space-between; font-size: 13px; color: var(--soft); }
-  .link { font: inherit; border: 0; background: none; color: var(--soft); text-decoration: underline; cursor: pointer; padding: 0; }
-  .link:hover { color: var(--ink); }
-  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-
-  .legend { position: absolute; left: 10px; bottom: 10px; background: var(--paper); border-radius: 3px; padding: 7px 10px;
-            display: flex; gap: 14px; flex-wrap: wrap; font-size: 14px; max-width: calc(100% - 20px); }
-  .legend i { display: inline-block; width: 11px; height: 11px; margin-right: 5px; vertical-align: -1px; border-radius: 50%; }
-  .hint { position: absolute; right: 10px; top: 10px; background: var(--paper); border-radius: 3px; padding: 5px 9px; font-size: 14px; }
-
-  @media (max-width: 900px) {
-    html, body { overflow: auto; }
-    .app { grid-template-columns: 1fr; grid-template-rows: 55vh auto; height: auto; }
-    aside { height: auto; min-height: 640px; border-left: 0; padding: 18px 16px; }
-  }
-</style>
-</head>
-<body>
-<div class="app">
-  <div class="mapwrap">
-    <div id="map" aria-label="Map of the water points"></div>
-    <div class="hint">Click a water point for details</div>
-    <div class="legend">
-      <span><i style="background:var(--red)"></i>Warning (live station)</span>
-      <span><i style="background:var(--yellow)"></i>Watch</span>
-      <span><i style="background:var(--yellow);border:3px solid var(--red)"></i>Getting worse fast</span>
-      <span><i style="background:#fff;border:2px solid var(--ink)"></i>No anomaly measured</span>
-    </div>
-  </div>
-
-  <aside>
-    <h1>Wendy's Early Signal, Turkana</h1>
-    <div class="counts">
-      <div class="count red"><b id="c-red">–</b><span>warnings</span></div>
-      <div class="count yellow"><b id="c-yellow">–</b><span>to watch</span></div>
-      <div class="count"><b id="c-people">–</b><span>people affected</span></div>
-    </div>
-    <p class="station" id="station"></p>
-
-    <div class="block">
-      <div class="title">
-        <h2 id="d-name">–</h2>
-        <span class="status" id="d-status"></span>
-      </div>
-      <p class="sub" id="d-sub"></p>
-      <div class="sensors" role="group" aria-label="Sensor values, click one to see its history">
-        <button type="button" data-metric="tds" aria-pressed="true"><span class="dt">Salt (TDS)</span><span class="dd" id="s-tds">–</span></button>
-        <button type="button" data-metric="turb" aria-pressed="false"><span class="dt">Turbidity</span><span class="dd" id="s-turb">–</span></button>
-        <button type="button" data-metric="ph" aria-pressed="false"><span class="dt">pH</span><span class="dd" id="s-ph">–</span></button>
-        <button type="button" data-metric="rain" aria-pressed="false"><span class="dt">Rain, next 10 d</span><span class="dd" id="s-rain">–</span></button>
-      </div>
-      <p class="germ" id="d-germ"></p>
-    </div>
-
-    <div class="chartbox"><canvas id="chart" aria-label="Sensor history"></canvas><div class="chartnote" id="chartnote" hidden></div></div>
-    <ul class="advice" id="d-advice"></ul>
-    <p class="alt" id="d-alt"></p>
-
-    <div class="block" style="margin-top:12px">
-      <div class="confirm" id="d-confirm" hidden>
-        <input type="text" id="d-by" placeholder="Your name" maxlength="40" aria-label="Your name">
-        <label><input type="checkbox" id="d-checked"> I checked the water</label>
-      </div>
-      <div class="actions">
-        <button class="act yellow" data-level="yellow">Set yellow</button>
-        <button class="act red" data-level="red" id="d-red">Set red</button>
-        <button class="act" id="d-reset">Reset</button>
-      </div>
-      <p class="msg" id="d-msg" role="status"></p>
-    </div>
-
-    <footer>
-      <span id="updated"></span>
-      <button class="link" id="reset-all">Reset all points</button>
-    </footer>
-  </aside>
-</div>
-
-<script>
-const COLOR = { red: '#d1242f', yellow: '#e3b008', none: '#ffffff' };
-const STATUS = { red: 'Warning', yellow: 'Watch', none: 'No anomaly measured' };
-const $ = id => document.getElementById(id);
-const lbl = id => String(id).replace(/^wp/, 'well');   // shown name: wp05 -> well05
-const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-const n = v => v.toLocaleString('en');
-const ago = h => h == null ? 'never' : h <= 0.2 ? 'just now' : h < 1 ? `${Math.round(h * 60)} min ago` : `${h} h ago`;
-
-let data = null, selectedId = null, source = null, selLayer = null, chart = null;
-
-const map = new atlas.Map('map', {
-  center: [35.62, 3.14], zoom: 9.4, style: 'satellite_road_labels',
-  authOptions: { authType: 'subscriptionKey', subscriptionKey: '__MAPS_KEY__' }
-});
-
-map.events.add('ready', () => {
-  source = new atlas.source.DataSource();
-  map.sources.add(source);
-  const isPoint = ['==', ['geometry-type'], 'Point'];
-  map.layers.add(new atlas.layer.LineLayer(source, null, {   // red point -> suggested water point
-    strokeColor: '#ffffff', strokeWidth: 2.5, strokeDashArray: [2, 2], filter: ['==', ['geometry-type'], 'LineString']
-  }));
-  selLayer = new atlas.layer.BubbleLayer(source, null, {
-    color: 'rgba(255,255,255,0.3)', radius: 23, strokeWidth: 2, strokeColor: '#ffffff',
-    filter: ['all', isPoint, ['==', ['get', 'id'], '']]
-  });
-  map.layers.add(selLayer);
-  const dots = new atlas.layer.BubbleLayer(source, null, {
-    color: ['get', 'color'], radius: ['get', 'radius'], strokeColor: ['get', 'stroke'], strokeWidth: ['get', 'strokeWidth'],
-    opacity: ['get', 'opacity'], strokeOpacity: ['get', 'opacity'], filter: isPoint
-  });
-  map.layers.add(dots);
-  map.layers.add(new atlas.layer.SymbolLayer(source, null, {
-    iconOptions: { image: 'none' },
-    textOptions: { textField: ['get', 'label'], offset: [0, 1.8], color: '#ffffff', haloColor: '#000000', haloWidth: 1.5, size: 13 },
-    filter: isPoint
-  }));
-  map.events.add('click', dots, e => select(e.shapes[0].getProperties().id));
-  refresh();
-  setInterval(refresh, 3000);
-});
-
-async function refresh() {
-  try { data = await (await fetch('/api/state')).json(); } catch (e) { return; }
-  if (!selectedId) selectedId = (data.points.find(p => p.live) || data.points[0]).id;
-  drawMap();
-  drawSummary();
-  drawDetail();
-}
-
-function drawMap() {
-  if (!source) return;
-  const feats = [];
-  data.points.forEach(p => {
-    const nodata = p.no_data && !p.manual;
-    feats.push(new atlas.data.Feature(new atlas.data.Point([p.lon, p.lat]), {
-      id: p.id, outlook_level: p.outlook_level,
-      color: nodata ? '#9aa3aa' : COLOR[p.level],
-      stroke: p.worsening ? '#d1242f' : (p.level === 'none' || nodata ? '#1d2327' : '#ffffff'),
-      strokeWidth: p.worsening ? 4 : 2,
-      opacity: nodata ? 0.6 : 1,
-      radius: p.level === 'red' ? 12 : p.level === 'yellow' ? 10 : 7,
-      label: p.live ? `${lbl(p.id)} live` : lbl(p.id)
-    }));
-  });
-  data.points.filter(p => p.level === 'red' && p.alternative).forEach(p => feats.push(
-    new atlas.data.Feature(new atlas.data.LineString([[p.lon, p.lat], [p.alternative.lon, p.alternative.lat]]), {})));
-  source.setShapes(feats);
-  selLayer.setOptions({ filter: ['all', ['==', ['geometry-type'], 'Point'], ['==', ['get', 'id'], selectedId]] });
-}
-
-function drawSummary() {
-  const red = data.points.filter(p => p.level === 'red');
-  const yellow = data.points.filter(p => p.level === 'yellow');
-  $('c-red').textContent = red.length;
-  $('c-yellow').textContent = yellow.length;
-  $('c-people').textContent = n([...red, ...yellow].reduce((s, p) => s + p.people, 0));
-  const live = data.points.find(p => p.live);
-  const st = $('station');
-  if (live) {
-    const fresh = !live.no_data && live.data_age_h != null && live.data_age_h <= 0.2;
-    st.textContent = live.no_data ? `Station ${lbl(live.id)} has not sent data yet.`
-      : fresh ? `Station ${lbl(live.id)} is live.`
-      : `Station ${lbl(live.id)} last sent data ${ago(live.data_age_h)}.`;
-    st.className = 'station' + (fresh ? '' : ' off');
-  }
-  $('updated').textContent = 'Updated ' + new Date(data.generated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
-function sensor(id, value, unit, opts = {}) {
-  const dd = $(id);
-  dd.className = 'dd';
-  if (value == null) { dd.textContent = opts.offText || 'not measured'; dd.className = 'dd off'; return; }
-  dd.textContent = value;
-  if (unit) dd.append(' ', el('small', null, unit));
-  if (opts.bad) dd.className = 'dd bad';
-}
-
-function drawDetail() {
-  const p = data.points.find(x => x.id === selectedId);
-  if (!p) return;
-  const nodata = p.no_data && !p.manual;
-  const name = $('d-name');
-  name.textContent = `${lbl(p.id)} ${p.name}`;
-  if (p.live) name.append(el('span', 'live', 'LIVE'));
-  const st = $('d-status');
-  st.className = 'status ' + (nodata ? 'none' : p.level);
-  st.textContent = nodata ? 'No data' : STATUS[p.level] + (p.manual ? ' (set by hand)' : p.worsening ? ', getting worse fast' : '');
-  $('d-sub').textContent = `${p.source_type.replace('_', ' ')}, ${n(p.people)} people, last data ${ago(p.data_age_h)}` +
-                           (p.live ? '' : ', simulated');
-
-  sensor('s-tds', p.tds != null ? n(Math.round(p.tds)) + (p.salt_trend === 'rising' ? ' ↑' : '') : null, 'mg/L',
-         { bad: p.salt === 'red', offText: 'no data' });
-  sensor('s-turb', p.turb != null ? (p.turb >= 100 ? n(Math.round(p.turb)) : p.turb.toFixed(1)) : null, 'NTU',
-         { offText: p.has_turb ? 'sensor off' : 'not measured' });
-  const fc = ((data.weather && data.weather.forecast) || []).slice(0, 10);
-  sensor('s-rain', fc.length ? String(Math.round(fc.reduce((t, d) => t + (d.rain_mm || 0), 0))) : null, 'mm', { offText: 'no data' });
-  sensor('s-ph', p.ph != null ? p.ph.toFixed(1) : null, '',
-         { bad: p.ph != null && (p.ph < 6.5 || p.ph > 8.5), offText: p.has_ph ? 'not calibrated' : 'not measured' });
-  const germ = p.p_germs >= 0.6 ? 'high' : p.p_germs >= 0.3 ? 'medium' : 'low';
-  $('d-germ').textContent = p.no_data ? '' : `Germ risk: ${germ} (estimate, not measured yet)`;
-
-  const advice = p.advice.filter(t => !p.manual || !t.startsWith('No alternative')).slice(0, 2);
-  $('d-advice').replaceChildren(...advice.map(t => el('li', null, t)));
-  $('d-alt').textContent = p.alternative ? `Go to ${lbl(p.alternative.id)} ${p.alternative.name} instead (${p.alternative.km} km)` : '';
-  $('d-confirm').hidden = !p.live;
-  $('d-red').hidden = !p.live;
-  loadChart(p.id);
-}
-
-// ------------------------------------------------ history chart, one sensor at a time --
-const METRICS = {
-  tds:  { label: 'Salt, mg/L', key: 'tds', none: 'No salt data yet.',
-          lines: h => { const l = (h.limits && h.limits.human) || 1000; return [[l, `Drinking limit ${l}`]]; } },
-  turb: { label: 'Turbidity, NTU', key: 'turb', none: 'No turbidity data for this point.',
-          lines: () => [[5, 'WHO guideline 5 NTU']] },
-  ph:   { label: 'pH', key: 'ph', none: 'No pH data for this point.', min: 4, max: 10,
-          lines: h => { const r = (h.limits && h.limits.ph) || [6.5, 8.5]; return [[r[0], `Normal range ${r[0]} to ${r[1]}`], [r[1], null]]; } }
-};
-let metric = 'tds', chartBusy = false;
-
-document.querySelectorAll('[data-metric]').forEach(b => b.addEventListener('click', () => {
-  metric = b.dataset.metric;
-  document.querySelectorAll('[data-metric]').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
-  if (selectedId) loadChart(selectedId, true);
-}));
-
-function useChart(type) {
-  if (chart && chart.config.type !== type) { chart.destroy(); chart = null; }
-}
-
-// Rain at Lodwar (same for all points): bars for the past 14 days and the 10-day forecast
-function drawRain() {
-  if (typeof Chart === 'undefined') return;
-  useChart('bar');
-  const w = (data && data.weather) || {};
-  const past = w.past || [], fc = (w.forecast || []).slice(0, 10);
-  const day = d => new Date(d + 'T12:00:00').toLocaleDateString('en', { weekday: 'short', day: 'numeric' });
-  const labels = [...past.map(d => day(d.date)), ...fc.map((d, i) => i === 0 ? 'Today' : day(d.date))];
-  const pastVals = [...past.map(d => d.rain_mm || 0), ...fc.map(() => null)];
-  const fcVals = [...past.map(() => null), ...fc.map(d => d.rain_mm || 0)];
-  const note = $('chartnote');
-  note.hidden = labels.length > 0;
-  note.textContent = 'No rain data yet.';
-  const datasets = [
-    { label: 'Rain at Lodwar, past 14 days (mm)', data: pastVals, backgroundColor: '#1d2327', grouped: false, barPercentage: 0.8 },
-    { label: 'Forecast', data: fcVals, backgroundColor: '#9aa3aa', grouped: false, barPercentage: 0.8 }
-  ];
-  const y = { min: 0, suggestedMax: 10, ticks: { color: '#5b6670', maxTicksLimit: 4 }, grid: { color: '#eceff1' } };
-  if (!chart) {
-    chart = new Chart($('chart'), {
-      type: 'bar', data: { labels, datasets },
-      options: {
-        animation: false, responsive: true, maintainAspectRatio: false,
-        scales: { x: { ticks: { color: '#5b6670', maxTicksLimit: 6, maxRotation: 0, autoSkip: true }, grid: { display: false } }, y },
-        plugins: { legend: { align: 'start', labels: { color: '#1d2327', boxWidth: 12, font: { size: 12 } } } }
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wendy's Water Wonder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.css"
+    />
+    <script src="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+      :root {
+        --ink: #1d2327;
+        --soft: #5b6670;
+        --rule: #d9dee2;
+        --paper: #ffffff;
+        --wash: #f2f4f5;
+        --red: #d1242f;
+        --yellow: #e3b008;
+        --yellow-text: #8a6100;
       }
-    });
-  } else {
-    chart.data.labels = labels; chart.data.datasets = datasets; chart.options.scales.y = y; chart.update();
-  }
-}
-
-async function loadChart(id, force) {
-  if (metric === 'rain') { drawRain(); return; }
-  if ((chartBusy && !force) || typeof Chart === 'undefined') return;
-  chartBusy = true;
-  let h = null;
-  try { h = await (await fetch(`/api/history?id=${id}&n=150`)).json(); } catch (e) {}
-  chartBusy = false;
-  if (!h || id !== selectedId) return;
-  if (metric === 'rain') { drawRain(); return; }
-  useChart('line');
-  const m = METRICS[metric];
-  const pts = h.points || [];
-  const labels = pts.map(p => new Date(p.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-  const values = pts.map(p => p[m.key] == null ? null : p[m.key]);
-  const has = values.some(v => v != null);
-  const note = $('chartnote');
-  note.hidden = has;
-  note.textContent = m.none;
-  const datasets = [{ label: m.label, data: values, borderColor: '#1d2327', pointRadius: 0, tension: 0.2, borderWidth: 2, fill: false, spanGaps: false }];
-  m.lines(h).forEach(([v, label]) => datasets.push({
-    label: label || '', data: values.map(() => v), borderColor: '#d1242f', borderDash: [5, 4], pointRadius: 0, borderWidth: 1.5, fill: false
-  }));
-  const nums = values.filter(v => v != null);
-  const yMin = m.min ?? 0;
-  const yMax = m.max ?? Math.max(...nums, ...m.lines(h).map(l => l[0])) * 1.15;
-  const y = { min: yMin, max: m.max ? Math.max(m.max, ...nums) : undefined, suggestedMax: yMax,
-              ticks: { color: '#5b6670', maxTicksLimit: 4 }, grid: { color: '#eceff1' } };
-  if (!chart) {
-    chart = new Chart($('chart'), {
-      type: 'line', data: { labels, datasets },
-      options: {
-        animation: false, responsive: true, maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        scales: { x: { ticks: { color: '#5b6670', maxTicksLimit: 4, maxRotation: 0 }, grid: { display: false } }, y },
-        plugins: { legend: { align: 'start', labels: { color: '#1d2327', boxWidth: 14, boxHeight: 1, font: { size: 12 },
-                                                       filter: item => item.text } } }
+      * {
+        box-sizing: border-box;
       }
-    });
-  } else {
-    chart.data.labels = labels; chart.data.datasets = datasets;
-    chart.options.scales.y = y;
-    chart.update();
-  }
-}
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+      }
+      body {
+        background: var(--paper);
+        color: var(--ink);
+        font:
+          16px/1.4 "Atkinson Hyperlegible",
+          system-ui,
+          sans-serif;
+      }
+      .app {
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        height: 100vh;
+      }
+      .mapwrap {
+        position: relative;
+      }
+      #map {
+        position: absolute;
+        inset: 0;
+      }
 
-function select(id) {
-  if (id !== selectedId) $('d-msg').textContent = '';
-  selectedId = id;
-  if (data) { drawMap(); drawDetail(); }
-}
+      /* fixed side panel: nothing scrolls, the chart takes the remaining height */
+      aside {
+        height: 100vh;
+        overflow: hidden;
+        border-left: 1px solid var(--rule);
+        padding: 20px 24px 14px;
+        display: flex;
+        flex-direction: column;
+      }
+      aside > * {
+        flex: none;
+      }
+      .block {
+        padding: 14px 0;
+        border-top: 1px solid var(--rule);
+      }
 
-document.querySelectorAll('[data-level]').forEach(b => b.addEventListener('click', async () => {
-  await post('/api/override', { point_id: selectedId, level: b.dataset.level });
-  $('d-msg').textContent = `${lbl(selectedId)} set to ${b.dataset.level} by hand. No SMS is sent for this.`;
-  refresh();
-}));
+      h1 {
+        font-size: 15px;
+        font-weight: 700;
+        margin: 0;
+        color: var(--soft);
+      }
+      .counts {
+        display: flex;
+        gap: 22px;
+        margin: 8px 0 6px;
+      }
+      .count b {
+        display: block;
+        font-size: 34px;
+        line-height: 1;
+      }
+      .count span {
+        font-size: 14px;
+        color: var(--soft);
+      }
+      .count.red b {
+        color: var(--red);
+      }
+      .count.yellow b {
+        color: var(--yellow-text);
+      }
+      .station {
+        margin: 0 0 14px;
+        font-size: 15px;
+        color: var(--soft);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .station.off {
+        color: var(--red);
+      }
 
-try { $('d-by').value = localStorage.getItem('wendy-by') || ''; } catch (e) {}
-$('d-reset').addEventListener('click', async () => {
-  const p = data && data.points.find(x => x.id === selectedId);
-  const msg = $('d-msg');
-  if (!p) return;
-  const by = $('d-by').value.trim();
-  if (p.live && (!by || !$('d-checked').checked)) { msg.textContent = 'Enter your name and tick "I checked the water" first.'; return; }
-  msg.textContent = 'Resetting…';
-  try {
-    // first the cloud (this may send the station a fresh verdict), then the station's lights
-    await post('/api/clear', { point_id: p.id });
-    if (p.live) {
-      try { localStorage.setItem('wendy-by', by); } catch (e) {}
-      const res = await post('/api/reset', { point_id: p.id, by, checked: true });
-      const body = await res.json();
-      if (!res.ok) { msg.textContent = body.error || 'The station could not be reset. Try again.'; refresh(); return; }
-      $('d-checked').checked = false;
-      msg.textContent = `Reset by ${body.by}. The station lights go off and come back if the water is still salty.`;
-    } else {
-      msg.textContent = `${lbl(p.id)} reset to the measured values.`;
-    }
-  } catch (e) { msg.textContent = 'No connection to the server. Try again.'; }
-  refresh();
-});
+      .title {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
+      }
+      .title h2 {
+        font-size: 21px;
+        margin: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .live {
+        font-size: 12px;
+        font-weight: 700;
+        border: 1.5px solid var(--ink);
+        border-radius: 3px;
+        padding: 0 5px;
+        margin-left: 6px;
+        vertical-align: 3px;
+      }
+      .status {
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .status.red {
+        color: var(--red);
+      }
+      .status.yellow {
+        color: var(--yellow-text);
+      }
+      .status.none {
+        color: var(--soft);
+      }
+      .sub {
+        color: var(--soft);
+        font-size: 14px;
+        margin: 2px 0 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
 
-$('reset-all').addEventListener('click', async () => {
-  await post('/api/clear', { point_id: 'all' });
-  $('d-msg').textContent = 'All points reset to the measured values.';
-  refresh();
-});
-</script>
-</body>
+      .sensors {
+        display: grid;
+        grid-template-columns: repeat(4, auto);
+        justify-content: space-between;
+        margin: 0 -4px;
+        align-items: end;
+      }
+      .sensors button {
+        display: flex;
+        flex-direction: column-reverse;
+        align-items: flex-start;
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 0;
+        border-bottom: 3px solid transparent;
+        padding: 2px 4px 4px;
+        margin: 0 4px 0 -4px;
+        cursor: pointer;
+        text-align: left;
+        border-radius: 3px 3px 0 0;
+      }
+      .sensors button:hover {
+        background: var(--wash);
+      }
+      .sensors button[aria-pressed="true"] {
+        border-bottom-color: var(--ink);
+      }
+      .chartnote {
+        position: absolute;
+        inset: 30px 0 20px 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--soft);
+        font-size: 14px;
+        pointer-events: none;
+      }
+      .sensors .dd {
+        margin: 0;
+        display: block;
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1.15;
+        white-space: nowrap;
+      }
+      .sensors .dd small {
+        font-size: 14px;
+        font-weight: 400;
+        color: var(--soft);
+      }
+      .sensors .dd.off {
+        font-size: 15px;
+        font-weight: 400;
+        color: var(--soft);
+        line-height: 1.6;
+      }
+      .sensors .dd.bad {
+        color: var(--red);
+      }
+      .sensors .dt {
+        font-size: 13px;
+        color: var(--soft);
+        display: block;
+        white-space: nowrap;
+      }
+      .germ {
+        margin: 10px 0 0;
+        font-size: 14px;
+        color: var(--soft);
+      }
+
+      .chartnote[hidden] {
+        display: none;
+      }
+      .chartbox {
+        flex: 1 1 auto;
+        min-height: 80px;
+        position: relative;
+        margin: 10px 0 4px;
+      }
+      .advice {
+        margin: 0;
+        padding-left: 18px;
+        font-size: 15px;
+      }
+      .advice li + li {
+        margin-top: 2px;
+      }
+      .alt {
+        margin: 6px 0 0;
+        font-size: 15px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .confirm {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 8px;
+        font-size: 14px;
+      }
+      .confirm[hidden] {
+        display: none;
+      }
+      .confirm input[type="text"] {
+        font: inherit;
+        padding: 5px 8px;
+        border: 1px solid var(--rule);
+        border-radius: 3px;
+        min-width: 0;
+      }
+      .confirm label {
+        white-space: nowrap;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+      }
+      button.act {
+        font: inherit;
+        font-size: 15px;
+        padding: 6px 12px;
+        border-radius: 3px;
+        cursor: pointer;
+        border: 1.5px solid var(--ink);
+        background: var(--paper);
+        color: var(--ink);
+      }
+      button.act:hover {
+        background: var(--wash);
+      }
+      button.act.yellow {
+        border-color: var(--yellow);
+      }
+      button.act.red {
+        border-color: var(--red);
+        color: var(--red);
+      }
+      .msg {
+        height: 2.6em;
+        margin: 6px 0 0;
+        font-size: 13px;
+        color: var(--soft);
+        overflow: hidden;
+      }
+
+      footer {
+        border-top: 1px solid var(--rule);
+        padding-top: 10px;
+        display: flex;
+        justify-content: space-between;
+        font-size: 13px;
+        color: var(--soft);
+      }
+      .link {
+        font: inherit;
+        border: 0;
+        background: none;
+        color: var(--soft);
+        text-decoration: underline;
+        cursor: pointer;
+        padding: 0;
+      }
+      .link:hover {
+        color: var(--ink);
+      }
+      :focus-visible {
+        outline: 2px solid var(--ink);
+        outline-offset: 2px;
+      }
+
+      .legend {
+        position: absolute;
+        left: 10px;
+        bottom: 10px;
+        background: var(--paper);
+        border-radius: 3px;
+        padding: 7px 10px;
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        font-size: 14px;
+        max-width: calc(100% - 20px);
+      }
+      .legend i {
+        display: inline-block;
+        width: 11px;
+        height: 11px;
+        margin-right: 5px;
+        vertical-align: -1px;
+        border-radius: 50%;
+      }
+      .hint {
+        position: absolute;
+        right: 10px;
+        top: 10px;
+        background: var(--paper);
+        border-radius: 3px;
+        padding: 5px 9px;
+        font-size: 14px;
+      }
+
+      @media (max-width: 900px) {
+        html,
+        body {
+          overflow: auto;
+        }
+        .app {
+          grid-template-columns: 1fr;
+          grid-template-rows: 55vh auto;
+          height: auto;
+        }
+        aside {
+          height: auto;
+          min-height: 640px;
+          border-left: 0;
+          padding: 18px 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="mapwrap">
+        <div id="map" aria-label="Map of the water points"></div>
+        <div class="hint">Click a water point for details</div>
+        <div class="legend">
+          <span
+            ><i style="background: var(--red)"></i>Warning (live station)</span
+          >
+          <span><i style="background: var(--yellow)"></i>Watch</span>
+          <span
+            ><i
+              style="background: var(--yellow); border: 3px solid var(--red)"
+            ></i
+            >Getting worse fast</span
+          >
+          <span
+            ><i style="background: #fff; border: 2px solid var(--ink)"></i>No
+            anomaly measured</span
+          >
+        </div>
+      </div>
+
+      <aside>
+        <h1>Wendy's Water Wonder, Turkana</h1>
+        <div class="counts">
+          <div class="count red"><b id="c-red">–</b><span>warnings</span></div>
+          <div class="count yellow">
+            <b id="c-yellow">–</b><span>to watch</span>
+          </div>
+          <div class="count">
+            <b id="c-people">–</b><span>people affected</span>
+          </div>
+        </div>
+        <p class="station" id="station"></p>
+
+        <div class="block">
+          <div class="title">
+            <h2 id="d-name">–</h2>
+            <span class="status" id="d-status"></span>
+          </div>
+          <p class="sub" id="d-sub"></p>
+          <div
+            class="sensors"
+            role="group"
+            aria-label="Sensor values, click one to see its history"
+          >
+            <button type="button" data-metric="tds" aria-pressed="true">
+              <span class="dt">Salt (TDS)</span
+              ><span class="dd" id="s-tds">–</span>
+            </button>
+            <button type="button" data-metric="turb" aria-pressed="false">
+              <span class="dt">Turbidity</span
+              ><span class="dd" id="s-turb">–</span>
+            </button>
+            <button type="button" data-metric="ph" aria-pressed="false">
+              <span class="dt">pH</span><span class="dd" id="s-ph">–</span>
+            </button>
+            <button type="button" data-metric="rain" aria-pressed="false">
+              <span class="dt">Rain, next 10 d</span
+              ><span class="dd" id="s-rain">–</span>
+            </button>
+          </div>
+          <p class="germ" id="d-germ"></p>
+        </div>
+
+        <div class="chartbox">
+          <canvas id="chart" aria-label="Sensor history"></canvas>
+          <div class="chartnote" id="chartnote" hidden></div>
+        </div>
+        <ul class="advice" id="d-advice"></ul>
+        <p class="alt" id="d-alt"></p>
+
+        <div class="block" style="margin-top: 12px">
+          <div class="confirm" id="d-confirm" hidden>
+            <input
+              type="text"
+              id="d-by"
+              placeholder="Your name"
+              maxlength="40"
+              aria-label="Your name"
+            />
+            <label
+              ><input type="checkbox" id="d-checked" /> I checked the
+              water</label
+            >
+          </div>
+          <div class="actions">
+            <button class="act yellow" data-level="yellow">Set yellow</button>
+            <button class="act red" data-level="red" id="d-red">Set red</button>
+            <button class="act" id="d-reset">Reset</button>
+          </div>
+          <p class="msg" id="d-msg" role="status"></p>
+        </div>
+
+        <footer>
+          <span id="updated"></span>
+          <button class="link" id="reset-all">Reset all points</button>
+        </footer>
+      </aside>
+    </div>
+
+    <script>
+      const COLOR = { red: "#d1242f", yellow: "#e3b008", none: "#ffffff" };
+      const STATUS = {
+        red: "Warning",
+        yellow: "Watch",
+        none: "No anomaly measured",
+      };
+      const $ = (id) => document.getElementById(id);
+      const lbl = (id) => String(id).replace(/^wp/, "well"); // shown name: wp05 -> well05
+      const el = (tag, cls, text) => {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text != null) e.textContent = text;
+        return e;
+      };
+      const post = (url, body) =>
+        fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      const n = (v) => v.toLocaleString("en");
+      const ago = (h) =>
+        h == null
+          ? "never"
+          : h <= 0.2
+            ? "just now"
+            : h < 1
+              ? `${Math.round(h * 60)} min ago`
+              : `${h} h ago`;
+
+      let data = null,
+        selectedId = null,
+        source = null,
+        selLayer = null,
+        chart = null;
+
+      const map = new atlas.Map("map", {
+        center: [35.62, 3.14],
+        zoom: 9.4,
+        style: "satellite_road_labels",
+        authOptions: {
+          authType: "subscriptionKey",
+          subscriptionKey: "__MAPS_KEY__",
+        },
+      });
+
+      map.events.add("ready", () => {
+        source = new atlas.source.DataSource();
+        map.sources.add(source);
+        const isPoint = ["==", ["geometry-type"], "Point"];
+        map.layers.add(
+          new atlas.layer.LineLayer(source, null, {
+            // red point -> suggested water point
+            strokeColor: "#ffffff",
+            strokeWidth: 2.5,
+            strokeDashArray: [2, 2],
+            filter: ["==", ["geometry-type"], "LineString"],
+          }),
+        );
+        selLayer = new atlas.layer.BubbleLayer(source, null, {
+          color: "rgba(255,255,255,0.3)",
+          radius: 23,
+          strokeWidth: 2,
+          strokeColor: "#ffffff",
+          filter: ["all", isPoint, ["==", ["get", "id"], ""]],
+        });
+        map.layers.add(selLayer);
+        const dots = new atlas.layer.BubbleLayer(source, null, {
+          color: ["get", "color"],
+          radius: ["get", "radius"],
+          strokeColor: ["get", "stroke"],
+          strokeWidth: ["get", "strokeWidth"],
+          opacity: ["get", "opacity"],
+          strokeOpacity: ["get", "opacity"],
+          filter: isPoint,
+        });
+        map.layers.add(dots);
+        map.layers.add(
+          new atlas.layer.SymbolLayer(source, null, {
+            iconOptions: { image: "none" },
+            textOptions: {
+              textField: ["get", "label"],
+              offset: [0, 1.8],
+              color: "#ffffff",
+              haloColor: "#000000",
+              haloWidth: 1.5,
+              size: 13,
+            },
+            filter: isPoint,
+          }),
+        );
+        map.events.add("click", dots, (e) =>
+          select(e.shapes[0].getProperties().id),
+        );
+        refresh();
+        setInterval(refresh, 3000);
+      });
+
+      async function refresh() {
+        try {
+          data = await (await fetch("/api/state")).json();
+        } catch (e) {
+          return;
+        }
+        if (!selectedId)
+          selectedId = (data.points.find((p) => p.live) || data.points[0]).id;
+        drawMap();
+        drawSummary();
+        drawDetail();
+      }
+
+      function drawMap() {
+        if (!source) return;
+        const feats = [];
+        data.points.forEach((p) => {
+          const nodata = p.no_data && !p.manual;
+          feats.push(
+            new atlas.data.Feature(new atlas.data.Point([p.lon, p.lat]), {
+              id: p.id,
+              outlook_level: p.outlook_level,
+              color: nodata ? "#9aa3aa" : COLOR[p.level],
+              stroke: p.worsening
+                ? "#d1242f"
+                : p.level === "none" || nodata
+                  ? "#1d2327"
+                  : "#ffffff",
+              strokeWidth: p.worsening ? 4 : 2,
+              opacity: nodata ? 0.6 : 1,
+              radius: p.level === "red" ? 12 : p.level === "yellow" ? 10 : 7,
+              label: p.live ? `${lbl(p.id)} live` : lbl(p.id),
+            }),
+          );
+        });
+        data.points
+          .filter((p) => p.level === "red" && p.alternative)
+          .forEach((p) =>
+            feats.push(
+              new atlas.data.Feature(
+                new atlas.data.LineString([
+                  [p.lon, p.lat],
+                  [p.alternative.lon, p.alternative.lat],
+                ]),
+                {},
+              ),
+            ),
+          );
+        source.setShapes(feats);
+        selLayer.setOptions({
+          filter: [
+            "all",
+            ["==", ["geometry-type"], "Point"],
+            ["==", ["get", "id"], selectedId],
+          ],
+        });
+      }
+
+      function drawSummary() {
+        const red = data.points.filter((p) => p.level === "red");
+        const yellow = data.points.filter((p) => p.level === "yellow");
+        $("c-red").textContent = red.length;
+        $("c-yellow").textContent = yellow.length;
+        $("c-people").textContent = n(
+          [...red, ...yellow].reduce((s, p) => s + p.people, 0),
+        );
+        const live = data.points.find((p) => p.live);
+        const st = $("station");
+        if (live) {
+          const fresh =
+            !live.no_data && live.data_age_h != null && live.data_age_h <= 0.2;
+          st.textContent = live.no_data
+            ? `Station ${lbl(live.id)} has not sent data yet.`
+            : fresh
+              ? `Station ${lbl(live.id)} is live.`
+              : `Station ${lbl(live.id)} last sent data ${ago(live.data_age_h)}.`;
+          st.className = "station" + (fresh ? "" : " off");
+        }
+        $("updated").textContent =
+          "Updated " +
+          new Date(data.generated).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          });
+      }
+
+      function sensor(id, value, unit, opts = {}) {
+        const dd = $(id);
+        dd.className = "dd";
+        if (value == null) {
+          dd.textContent = opts.offText || "not measured";
+          dd.className = "dd off";
+          return;
+        }
+        dd.textContent = value;
+        if (unit) dd.append(" ", el("small", null, unit));
+        if (opts.bad) dd.className = "dd bad";
+      }
+
+      function drawDetail() {
+        const p = data.points.find((x) => x.id === selectedId);
+        if (!p) return;
+        const nodata = p.no_data && !p.manual;
+        const name = $("d-name");
+        name.textContent = `${lbl(p.id)} ${p.name}`;
+        if (p.live) name.append(el("span", "live", "LIVE"));
+        const st = $("d-status");
+        st.className = "status " + (nodata ? "none" : p.level);
+        st.textContent = nodata
+          ? "No data"
+          : STATUS[p.level] +
+            (p.manual
+              ? " (set by hand)"
+              : p.worsening
+                ? ", getting worse fast"
+                : "");
+        $("d-sub").textContent =
+          `${p.source_type.replace("_", " ")}, ${n(p.people)} people, last data ${ago(p.data_age_h)}` +
+          (p.live ? "" : ", simulated");
+
+        sensor(
+          "s-tds",
+          p.tds != null
+            ? n(Math.round(p.tds)) + (p.salt_trend === "rising" ? " ↑" : "")
+            : null,
+          "mg/L",
+          { bad: p.salt === "red", offText: "no data" },
+        );
+        sensor(
+          "s-turb",
+          p.turb != null
+            ? p.turb >= 100
+              ? n(Math.round(p.turb))
+              : p.turb.toFixed(1)
+            : null,
+          "NTU",
+          { offText: p.has_turb ? "sensor off" : "not measured" },
+        );
+        const fc = ((data.weather && data.weather.forecast) || []).slice(0, 10);
+        sensor(
+          "s-rain",
+          fc.length
+            ? String(Math.round(fc.reduce((t, d) => t + (d.rain_mm || 0), 0)))
+            : null,
+          "mm",
+          { offText: "no data" },
+        );
+        sensor("s-ph", p.ph != null ? p.ph.toFixed(1) : null, "", {
+          bad: p.ph != null && (p.ph < 6.5 || p.ph > 8.5),
+          offText: p.has_ph ? "not calibrated" : "not measured",
+        });
+        const germ =
+          p.p_germs >= 0.6 ? "high" : p.p_germs >= 0.3 ? "medium" : "low";
+        $("d-germ").textContent = p.no_data
+          ? ""
+          : `Germ risk: ${germ} (estimate, not measured yet)`;
+
+        const advice = p.advice
+          .filter((t) => !p.manual || !t.startsWith("No alternative"))
+          .slice(0, 2);
+        $("d-advice").replaceChildren(...advice.map((t) => el("li", null, t)));
+        $("d-alt").textContent = p.alternative
+          ? `Go to ${lbl(p.alternative.id)} ${p.alternative.name} instead (${p.alternative.km} km)`
+          : "";
+        $("d-confirm").hidden = !p.live;
+        $("d-red").hidden = !p.live;
+        loadChart(p.id);
+      }
+
+      // ------------------------------------------------ history chart, one sensor at a time --
+      const METRICS = {
+        tds: {
+          label: "Salt, mg/L",
+          key: "tds",
+          none: "No salt data yet.",
+          lines: (h) => {
+            const l = (h.limits && h.limits.human) || 1000;
+            return [[l, `Drinking limit ${l}`]];
+          },
+        },
+        turb: {
+          label: "Turbidity, NTU",
+          key: "turb",
+          none: "No turbidity data for this point.",
+          lines: () => [[5, "WHO guideline 5 NTU"]],
+        },
+        ph: {
+          label: "pH",
+          key: "ph",
+          none: "No pH data for this point.",
+          min: 4,
+          max: 10,
+          lines: (h) => {
+            const r = (h.limits && h.limits.ph) || [6.5, 8.5];
+            return [
+              [r[0], `Normal range ${r[0]} to ${r[1]}`],
+              [r[1], null],
+            ];
+          },
+        },
+      };
+      let metric = "tds",
+        chartBusy = false;
+
+      document.querySelectorAll("[data-metric]").forEach((b) =>
+        b.addEventListener("click", () => {
+          metric = b.dataset.metric;
+          document
+            .querySelectorAll("[data-metric]")
+            .forEach((x) =>
+              x.setAttribute("aria-pressed", x === b ? "true" : "false"),
+            );
+          if (selectedId) loadChart(selectedId, true);
+        }),
+      );
+
+      function useChart(type) {
+        if (chart && chart.config.type !== type) {
+          chart.destroy();
+          chart = null;
+        }
+      }
+
+      // Rain at Lodwar (same for all points): bars for the past 14 days and the 10-day forecast
+      function drawRain() {
+        if (typeof Chart === "undefined") return;
+        useChart("bar");
+        const w = (data && data.weather) || {};
+        const past = w.past || [],
+          fc = (w.forecast || []).slice(0, 10);
+        const day = (d) =>
+          new Date(d + "T12:00:00").toLocaleDateString("en", {
+            weekday: "short",
+            day: "numeric",
+          });
+        const labels = [
+          ...past.map((d) => day(d.date)),
+          ...fc.map((d, i) => (i === 0 ? "Today" : day(d.date))),
+        ];
+        const pastVals = [
+          ...past.map((d) => d.rain_mm || 0),
+          ...fc.map(() => null),
+        ];
+        const fcVals = [
+          ...past.map(() => null),
+          ...fc.map((d) => d.rain_mm || 0),
+        ];
+        const note = $("chartnote");
+        note.hidden = labels.length > 0;
+        note.textContent = "No rain data yet.";
+        const datasets = [
+          {
+            label: "Rain at Lodwar, past 14 days (mm)",
+            data: pastVals,
+            backgroundColor: "#1d2327",
+            grouped: false,
+            barPercentage: 0.8,
+          },
+          {
+            label: "Forecast",
+            data: fcVals,
+            backgroundColor: "#9aa3aa",
+            grouped: false,
+            barPercentage: 0.8,
+          },
+        ];
+        const y = {
+          min: 0,
+          suggestedMax: 10,
+          ticks: { color: "#5b6670", maxTicksLimit: 4 },
+          grid: { color: "#eceff1" },
+        };
+        if (!chart) {
+          chart = new Chart($("chart"), {
+            type: "bar",
+            data: { labels, datasets },
+            options: {
+              animation: false,
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                x: {
+                  ticks: {
+                    color: "#5b6670",
+                    maxTicksLimit: 6,
+                    maxRotation: 0,
+                    autoSkip: true,
+                  },
+                  grid: { display: false },
+                },
+                y,
+              },
+              plugins: {
+                legend: {
+                  align: "start",
+                  labels: {
+                    color: "#1d2327",
+                    boxWidth: 12,
+                    font: { size: 12 },
+                  },
+                },
+              },
+            },
+          });
+        } else {
+          chart.data.labels = labels;
+          chart.data.datasets = datasets;
+          chart.options.scales.y = y;
+          chart.update();
+        }
+      }
+
+      async function loadChart(id, force) {
+        if (metric === "rain") {
+          drawRain();
+          return;
+        }
+        if ((chartBusy && !force) || typeof Chart === "undefined") return;
+        chartBusy = true;
+        let h = null;
+        try {
+          h = await (await fetch(`/api/history?id=${id}&n=150`)).json();
+        } catch (e) {}
+        chartBusy = false;
+        if (!h || id !== selectedId) return;
+        if (metric === "rain") {
+          drawRain();
+          return;
+        }
+        useChart("line");
+        const m = METRICS[metric];
+        const pts = h.points || [];
+        const labels = pts.map((p) =>
+          new Date(p.ts).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        );
+        const values = pts.map((p) => (p[m.key] == null ? null : p[m.key]));
+        const has = values.some((v) => v != null);
+        const note = $("chartnote");
+        note.hidden = has;
+        note.textContent = m.none;
+        const datasets = [
+          {
+            label: m.label,
+            data: values,
+            borderColor: "#1d2327",
+            pointRadius: 0,
+            tension: 0.2,
+            borderWidth: 2,
+            fill: false,
+            spanGaps: false,
+          },
+        ];
+        m.lines(h).forEach(([v, label]) =>
+          datasets.push({
+            label: label || "",
+            data: values.map(() => v),
+            borderColor: "#d1242f",
+            borderDash: [5, 4],
+            pointRadius: 0,
+            borderWidth: 1.5,
+            fill: false,
+          }),
+        );
+        const nums = values.filter((v) => v != null);
+        const yMin = m.min ?? 0;
+        const yMax =
+          m.max ?? Math.max(...nums, ...m.lines(h).map((l) => l[0])) * 1.15;
+        const y = {
+          min: yMin,
+          max: m.max ? Math.max(m.max, ...nums) : undefined,
+          suggestedMax: yMax,
+          ticks: { color: "#5b6670", maxTicksLimit: 4 },
+          grid: { color: "#eceff1" },
+        };
+        if (!chart) {
+          chart = new Chart($("chart"), {
+            type: "line",
+            data: { labels, datasets },
+            options: {
+              animation: false,
+              responsive: true,
+              maintainAspectRatio: false,
+              interaction: { mode: "index", intersect: false },
+              scales: {
+                x: {
+                  ticks: { color: "#5b6670", maxTicksLimit: 4, maxRotation: 0 },
+                  grid: { display: false },
+                },
+                y,
+              },
+              plugins: {
+                legend: {
+                  align: "start",
+                  labels: {
+                    color: "#1d2327",
+                    boxWidth: 14,
+                    boxHeight: 1,
+                    font: { size: 12 },
+                    filter: (item) => item.text,
+                  },
+                },
+              },
+            },
+          });
+        } else {
+          chart.data.labels = labels;
+          chart.data.datasets = datasets;
+          chart.options.scales.y = y;
+          chart.update();
+        }
+      }
+
+      function select(id) {
+        if (id !== selectedId) $("d-msg").textContent = "";
+        selectedId = id;
+        if (data) {
+          drawMap();
+          drawDetail();
+        }
+      }
+
+      document.querySelectorAll("[data-level]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          await post("/api/override", {
+            point_id: selectedId,
+            level: b.dataset.level,
+          });
+          $("d-msg").textContent =
+            `${lbl(selectedId)} set to ${b.dataset.level} by hand. No SMS is sent for this.`;
+          refresh();
+        }),
+      );
+
+      try {
+        $("d-by").value = localStorage.getItem("wendy-by") || "";
+      } catch (e) {}
+      $("d-reset").addEventListener("click", async () => {
+        const p = data && data.points.find((x) => x.id === selectedId);
+        const msg = $("d-msg");
+        if (!p) return;
+        const by = $("d-by").value.trim();
+        if (p.live && (!by || !$("d-checked").checked)) {
+          msg.textContent =
+            'Enter your name and tick "I checked the water" first.';
+          return;
+        }
+        msg.textContent = "Resetting…";
+        try {
+          // first the cloud (this may send the station a fresh verdict), then the station's lights
+          await post("/api/clear", { point_id: p.id });
+          if (p.live) {
+            try {
+              localStorage.setItem("wendy-by", by);
+            } catch (e) {}
+            const res = await post("/api/reset", {
+              point_id: p.id,
+              by,
+              checked: true,
+            });
+            const body = await res.json();
+            if (!res.ok) {
+              msg.textContent =
+                body.error || "The station could not be reset. Try again.";
+              refresh();
+              return;
+            }
+            $("d-checked").checked = false;
+            msg.textContent = `Reset by ${body.by}. The station lights go off and come back if the water is still salty.`;
+          } else {
+            msg.textContent = `${lbl(p.id)} reset to the measured values.`;
+          }
+        } catch (e) {
+          msg.textContent = "No connection to the server. Try again.";
+        }
+        refresh();
+      });
+
+      $("reset-all").addEventListener("click", async () => {
+        await post("/api/clear", { point_id: "all" });
+        $("d-msg").textContent = "All points reset to the measured values.";
+        refresh();
+      });
+    </script>
+  </body>
 </html>

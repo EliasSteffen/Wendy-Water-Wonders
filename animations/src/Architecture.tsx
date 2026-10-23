@@ -454,7 +454,7 @@ const ArchTitle: React.FC = () => {
             fontSize: 20,
           }}
         >
-          WENDY'S EARLY SIGNAL · THE SYSTEM
+          Wendy's Water Wonder · THE SYSTEM
         </div>
         <div style={{ ...up(a(8)), fontSize: 110, fontWeight: 800, color: "#f8fafc", letterSpacing: -3, marginTop: 30, lineHeight: 1 }}>
           From the well to the phone
