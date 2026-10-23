@@ -125,28 +125,8 @@ td:first-child { white-space: nowrap; }
 .bar-fill { height: 100%; border-radius: 7px; }
 .bar b { text-align: right; font-family: "JetBrains Mono", ui-monospace, monospace; }
 
-.dash { margin-top: 32px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
-.dash-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
-.dash-tabs button { font: inherit; font-size: 15px; font-weight: 700; padding: 9px 16px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--card-2); color: var(--muted); cursor: pointer; }
-.dash-tabs button[aria-selected="true"] { color: var(--text); border-color: var(--accent); }
-.dash-note { color: var(--muted); margin: 12px 0 16px; font-size: 16px; }
-.dash-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
-@media (min-width: 900px) { .dash-grid { grid-template-columns: 1.1fr 1fr; } }
-.dash-map { width: 100%; height: auto; background: #0b1324; border-radius: 16px; }
-.dash-map circle { cursor: pointer; }
-.dash-map circle:focus-visible { outline: none; stroke: #60a5fa; stroke-width: 4; }
-.dash-map text { font-family: Inter, system-ui, sans-serif; font-size: 11px; fill: #cbd5e1; pointer-events: none; }
-.dash-side { display: grid; gap: 14px; align-content: start; }
-.dash-box { background: var(--card-2); border-radius: 14px; padding: 14px 16px; font-size: 16px; }
-.dash-box h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); margin: 0 0 8px; }
-.dash-box ul { margin: 0; padding-left: 18px; }
-.dash-box li { margin: 2px 0; }
-.badge { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; border: 1.5px solid currentColor; }
-.badge.none { color: var(--muted); }
-.badge.yellow { color: var(--yellow); }
-.badge.red { color: var(--red); }
-.sms { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 15px; background: #14532d; color: #f8fafc; border-radius: 16px 16px 16px 4px; padding: 12px 14px; }
-
+.dash-embed { margin-top: 32px; height: min(820px, 88vh); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shadow); background: #070c17; }
+.dash-embed iframe { display: block; width: 100%; height: 100%; border: 0; }
 .team { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; padding: 0; list-style: none; }
 .team li { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 10px 18px; font-weight: 600; }
 .team a { text-decoration: none; }

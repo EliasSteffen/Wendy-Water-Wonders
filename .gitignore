@@ -47,3 +47,6 @@ npm-debug.log*
 # Local only
 .claude/
 VEROEFFENTLICHUNGSPLAN.md
+
+# Dashboard demo, built from cloud/static/map.html
+frontend/public/dashboard/

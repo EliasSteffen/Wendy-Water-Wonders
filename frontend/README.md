@@ -1,6 +1,15 @@
 # Frontend
 
-The project website on GitHub Pages: one page built with [Astro](https://astro.build) and React. It plays the Remotion compositions from `../animations/` live in the browser (`@remotion/player`), draws the Turkana map and shows a dashboard demo computed with the cloud's own risk logic.
+The project website on GitHub Pages: one page built with [Astro](https://astro.build) and React. It plays the Remotion compositions from `../animations/` live in the browser (`@remotion/player`), draws the Turkana map and embeds Wendy's real dashboard as a demo.
+
+## The dashboard demo
+
+`scripts/build-dashboard.mjs` (runs before `dev` and `build`) takes the original `../cloud/static/map.html` unchanged and loads `dashboard/shim.js` in front of it. The shim:
+
+- swaps Azure Maps for MapLibre with Esri satellite imagery, so no Maps key is needed;
+- answers `/api/state`, `/api/history`, `/api/override`, `/api/clear` and `/api/reset` from `dashboard/demo-data.json`, so every button works and nothing leaves the browser.
+
+The result lands in `public/dashboard/` (not in git). Open `dashboard/index.html`; `?scenario=normal|salt|rain` picks the starting situation.
 
 ## Run it
 
@@ -16,11 +25,12 @@ npm run dev --workspace frontend   # http://localhost:4321
 
 | File | Made by | Refresh with |
 |---|---|---|
-| `src/data/dashboard-demo.json` | `cloud/export_demo_state.py`, which runs `cloud/logic.py` | `python3 cloud/export_demo_state.py` |
+| `dashboard/demo-data.json` | `cloud/export_demo_state.py`: `/api/state` and `/api/history` for three situations, from `logic.assess_all()` | `python3 cloud/export_demo_state.py` |
 | `../animations/src/data/turkana.json` | `geo/export_animation_data.py` | `python3 geo/build_map.py && python3 geo/export_animation_data.py` |
 | `../shared/limits.json` | by hand, shared with the Pi and the cloud | |
 | `public/og.jpg` | a still of the station animation (frame 930) | `npx remotion still StationOverview` in `animations/`, then convert to JPEG |
 | `public/map/` | copied from `geo/dist/` before `dev` and `build` (not in git) | `python3 geo/build_map.py` |
+| `public/dashboard/` | built from `cloud/static/map.html` and `dashboard/` before `dev` and `build` (not in git) | automatic |
 
 ## Deploy
 

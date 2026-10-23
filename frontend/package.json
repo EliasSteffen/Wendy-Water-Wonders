@@ -5,9 +5,9 @@
   "type": "module",
   "description": "Project website (GitHub Pages) with the Remotion animations, the Turkana map and a dashboard demo",
   "scripts": {
-    "predev": "node scripts/copy-map.mjs",
+    "predev": "node scripts/copy-map.mjs && node scripts/build-dashboard.mjs",
     "dev": "astro dev",
-    "prebuild": "node scripts/copy-map.mjs",
+    "prebuild": "node scripts/copy-map.mjs && node scripts/build-dashboard.mjs",
     "build": "astro build",
     "preview": "astro preview",
     "typecheck": "astro sync && tsc --noEmit"

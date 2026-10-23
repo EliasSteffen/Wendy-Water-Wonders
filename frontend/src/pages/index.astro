@@ -3,7 +3,6 @@ import Base from "../layouts/Base.astro";
 import AnimationPlayer from "../components/AnimationPlayer";
 import Hero from "../components/Hero";
 import CoverageMap from "../components/CoverageMap.astro";
-import DashboardDemo from "../components/DashboardDemo";
 import { REPO_URL, TEAM, repoFile, withBase } from "../data/site";
 import LIMITS from "../../../shared/limits.json";
 
@@ -109,8 +108,14 @@ const description =
       <div class="wrap">
         <p class="eyebrow">Try it</p>
         <h2>Wendy's dashboard</h2>
-        <p class="lead">Three situations, computed with the same risk logic that runs in the cloud: warnings, what to test today, the nearest usable water point and the SMS that goes out.</p>
-        <DashboardDemo client:visible />
+        <p class="lead">The real dashboard Wendy works with, running here on data recorded with the cloud's risk logic. Pick a situation at the bottom left, click a water point, set a colour or reset it.</p>
+        <div class="dash-embed">
+          <iframe src={withBase("dashboard/index.html")} title="Wendy's dashboard, demo with recorded data" loading="lazy"></iframe>
+        </div>
+        <div class="buttons" style="margin-top:16px">
+          <a class="btn" href={withBase("dashboard/index.html")}>Open the dashboard full screen</a>
+        </div>
+        <p class="fine">This is the original dashboard from <code>cloud/static/map.html</code>. For the demo, Azure Maps is replaced by MapLibre with Esri satellite imagery, and the cloud API by data from <code>cloud/export_demo_state.py</code>. Nothing is sent. Positions near Lodwar and all limits are placeholders; only well07 was a real station.</p>
       </div>
     </section>
 
