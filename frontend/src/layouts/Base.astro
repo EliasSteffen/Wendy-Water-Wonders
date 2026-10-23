@@ -1,4 +1,8 @@
 ---
+// Fonts are served from this site (Fontsource), not from Google
+import "@fontsource-variable/inter";
+import "@fontsource/jetbrains-mono/500.css";
+import "@fontsource/jetbrains-mono/700.css";
 import "../styles/global.css";
 import { withBase } from "../data/site";
 
@@ -24,9 +28,6 @@ const image = Astro.site ? new URL(withBase("og.jpg"), Astro.site).href : withBa
     <meta property="og:description" content={description} />
     <meta property="og:image" content={image} />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
   </head>
   <body>
     <slot />

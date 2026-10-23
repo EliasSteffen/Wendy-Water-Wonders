@@ -5,8 +5,20 @@ import Hero from "../components/Hero";
 import CoverageMap from "../components/CoverageMap.astro";
 import { REPO_URL, TEAM, repoFile, withBase } from "../data/site";
 import LIMITS from "../../../shared/limits.json";
+import TURKANA from "../../../animations/src/data/turkana.json";
 
 const title = "Wendy's Water Wonder";
+
+// Every number with its source. WHO: drinking-water fact sheet of 13 September 2023 (data for 2022).
+const WHO = "https://www.who.int/news-room/fact-sheets/detail/drinking-water";
+const STATS = [
+  { value: "2.2 billion", label: "people had no safely managed drinking water in 2022", source: "WHO", href: WHO },
+  { value: "1.7 billion", label: "people drank from a source contaminated with faeces in 2022", source: "WHO", href: WHO },
+  { value: "~505,000", label: "people die every year of diarrhoea from contaminated drinking water", source: "WHO", href: WHO },
+  { value: "115 million", label: "people collected untreated surface water in 2022", source: "WHO", href: WHO },
+  { value: "926,976", label: "people lived in Turkana County at the 2019 census", source: "Kenya census 2019 (CRA fact sheet)", href: "https://ipfglobal.or.ke/wp-content/uploads/2023/10/Turkana-County-Kenya-County-Fact-Sheets-3rd-Edition-by-CRA.pdf" },
+  { value: `${TURKANA.stats.classes.gt35} %`, label: `of ${TURKANA.stats.rural} mapped rural water points in Turkana are more than 35 km from the next known cell tower`, source: "our map, open data", href: "#network" },
+];
 const description =
   "A low-cost water-quality station and early-warning system for water points in Turkana, Kenya. Built at the BCG Platinion hackathon Fighting World Hunger, October 2026.";
 ---
@@ -47,6 +59,16 @@ const description =
           <div class="card"><h3>Nobody can be everywhere</h3><p>Field staff can only visit each point now and then. Lab tests take time.</p></div>
           <div class="card"><h3>The network is patchy</h3><p>Many water points are far from the next cell tower, so data has to wait until there is a connection.</p></div>
         </div>
+        <h3 class="stats-title">The numbers</h3>
+        <ul class="stats">
+          {STATS.map((st) => (
+            <li class="stat">
+              <b>{st.value}</b>
+              <span>{st.label}</span>
+              <a href={st.href}>{st.source}</a>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
 
@@ -166,9 +188,22 @@ const description =
       <div class="wrap">
         <p class="eyebrow">Team</p>
         <h2>Who built it</h2>
-        <ul class="team">
+        <ul class="team-grid">
           {TEAM.map((m) => (
-            <li>{m.github ? <a href={`https://github.com/${m.github}`}>{m.name}</a> : m.name}</li>
+            <li class="person">
+              {m.github ? (
+                <img class="avatar" src={`https://github.com/${m.github}.png?size=160`} width="72" height="72" alt="" loading="lazy" />
+              ) : (
+                <span class="avatar" aria-hidden="true">{m.name.split(" ").map((w) => w[0]).filter((c) => /[A-Z]/.test(c)).slice(0, 2).join("")}</span>
+              )}
+              <h3>{m.name}</h3>
+              <dl>
+                <dt>GitHub</dt>
+                <dd>{m.github ? <a href={`https://github.com/${m.github}`}>@{m.github}</a> : <span class="none">--</span>}</dd>
+                <dt>LinkedIn</dt>
+                <dd>{m.linkedin ? <a href={`https://www.linkedin.com/in/${m.linkedin}`}>{m.linkedin}</a> : <span class="none">--</span>}</dd>
+              </dl>
+            </li>
           ))}
         </ul>
         <p class="muted" style="margin-top:24px">Thanks to BCG Platinion for the hackathon and to Welthungerhilfe for the case.</p>
