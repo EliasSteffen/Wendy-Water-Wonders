@@ -56,7 +56,7 @@ export const WiringGuide: React.FC = () => {
         chipAt={sec(12.6)}
         switchA={interpolate(frame, [sec(66.0), sec(66.6)], [0, 1], CLAMP)}
         powered={powerOn(frame)}
-        ph={frame >= sec(85.2) ? { at: sec(85.2), cap: interpolate(frame, [sec(91.9), sec(92.7)], [1, 0], CLAMP) } : undefined}
+        ph={{ at: sec(6.9), cap: interpolate(frame, [sec(91.9), sec(92.7)], [1, 0], CLAMP) }}
         focusStep={step === "done" ? null : step}
         dimOthers={!NO_DIM.includes(step)}
         flowFrom={stepRange("done").from + sec(1.5)}

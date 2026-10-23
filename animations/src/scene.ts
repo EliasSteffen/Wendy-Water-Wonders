@@ -237,9 +237,11 @@ export const WORLD_LABELS: LabelDef[] = [
   { x: 1020, y: 114, text: "Half-size breadboard", at: sec(5.2), out: sec(8.7) },
   { x: 790, y: 668, text: "TDS sensor board", at: sec(5.9), out: sec(8.7) },
   { x: 1290, y: 668, text: "Turbidity sensor board", at: sec(6.6), out: sec(8.7) },
+  { x: 1049, y: 900, text: "pH sensor board", at: sec(7.0), out: sec(8.7) },
   { x: 1720, y: 180, text: "Probes in the water", at: sec(7.3), out: sec(8.7) },
   { x: 1660, y: 740, text: "TDS", at: sec(7.5), out: sec(8.7), size: 12 },
   { x: 1790, y: 740, text: "Turbidity", at: sec(7.6), out: sec(8.7), size: 12 },
+  { x: 1720, y: 700, text: "pH", at: sec(7.7), out: sec(8.7), size: 12 },
   { x: 806, y: 374, text: "notch", at: sec(13.6), out: sec(17.8), size: 11 },
   { x: 876, y: 452, text: "pin 1", at: sec(14.6), out: sec(17.8), size: 11 },
 ];

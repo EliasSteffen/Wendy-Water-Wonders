@@ -455,7 +455,7 @@ export const TitleCard: React.FC = () => {
             color: "transparent",
           }}
         >
-          Raspberry Pi 5 + MCP3008 + 2 water sensors
+          Raspberry Pi 5 + MCP3008 + 3 water sensors
         </div>
         <div style={{ ...up(a(20)), fontSize: 26, color: "#a9b7cb", marginTop: 20 }}>Step by step on a breadboard · about 100 seconds</div>
         <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 44 }}>
@@ -711,7 +711,7 @@ export const Multimeter: React.FC<{ frame: number; fps: number }> = ({ frame, fp
     frame < sec(87)
       ? 0
       : interpolate(frame, [sec(87), sec(88.2)], [0, 2.71], { ...CLAMP, easing: Easing.out(Easing.cubic) }) +
-        (frame > sec(88.2) ? Math.sin(frame * 0.7) * 0.005 : 0);
+      (frame > sec(88.2) ? Math.sin(frame * 0.7) * 0.005 : 0);
   const okS = spring({ frame: frame - sec(88.4), fps, config: { damping: 14 } });
   const meter = { x: 1500, y: 130, w: 330, h: 470 };
   const dx = (1 - slide) * 80;
