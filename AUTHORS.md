@@ -5,7 +5,7 @@ Wendy Water Wonders was built by this team at the BCG Platinion hackathon "Fight
 | Name                 | GitHub                                           |
 | -------------------- | ------------------------------------------------ |
 | Jolanda Bolt         |                                                  |
-| Merlind C. Pohl      |                                                  |
+| Merlind C. Pohl      | [@MerlindCPohl](https://github.com/MerlindCPohl) |
 | Maximilian Schwingel | [@m111xi](https://github.com/m111xi)             |
 | Elias Steffen        | [@EliasSteffen](https://github.com/EliasSteffen) |
 | Andrea Stefke        |                                                  |
